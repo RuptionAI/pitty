@@ -26,6 +26,16 @@ builds the native release binary. `cargo run -p pitty-build -- engine` rebuilds
 only the engine. The binary embeds `assets/pitty_core.wasm`, so commit the
 rebuilt file when you change `crates/core`.
 
+Build the committed engine with the release toolchain, Rust 1.98.0:
+
+```sh
+cargo +1.98.0 run --locked -p pitty-build -- engine
+```
+
+The Release packages workflow rebuilds the engine with 1.98.0. If its result
+differs from the committed file, the working tree changes and every archive's
+`BUILD.txt` says "uncommitted changes; candidate only".
+
 ## Website
 
 `website/` is generated, so do not edit it by hand. Change the Rust source in
