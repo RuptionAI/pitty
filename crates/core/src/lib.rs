@@ -65,7 +65,7 @@ pub const COMMANDS: &[(&str, &str, &str)] = &[
     (
         "tools",
         "[ask|auto|off]",
-        "Choose how file tools and commands run",
+        "Choose how file tools and commands run; Shift+Tab switches ask and auto",
     ),
     (
         "run",
@@ -108,6 +108,11 @@ pub const COMMANDS: &[(&str, &str, &str)] = &[
     ("tokens", "[NUMBER]", "Show or set the output token limit"),
     ("timeout", "[SECONDS]", "Show or set the request timeout"),
     (
+        "turns",
+        "[NUMBER]",
+        "Show or set how many model turns one request may use",
+    ),
+    (
         "system",
         "[PROMPT|off]",
         "Show, set, or clear the system instruction",
@@ -125,12 +130,17 @@ pub const COMMANDS: &[(&str, &str, &str)] = &[
     (
         "models",
         "[free|QUERY]",
-        "Browse the model catalog for this chat interface",
+        "Browse the models of this chat interface",
+    ),
+    (
+        "local",
+        "",
+        "Find model servers on this computer and choose a local model",
     ),
     (
         "web",
-        "[on|off]",
-        "Toggle web search; additional search charges may apply",
+        "[on|off|duckduckgo|searxng URL|brave|tavily|openrouter]",
+        "Toggle web search, or choose where searches go",
     ),
     (
         "attach",

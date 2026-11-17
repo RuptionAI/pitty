@@ -15,7 +15,7 @@ mod serve;
 use std::{path::PathBuf, process::ExitCode};
 
 /// The release whose archives are published under /downloads/.
-pub const RELEASE: &str = "0.7.0";
+pub const RELEASE: &str = "0.8.0";
 /// Cache-bust for archive URLs. Cloudflare kept the previous Apple Silicon
 /// tarball for 180 days under the bare filename, so a replaced archive needs
 /// a new query before the one-paste installer will see it.

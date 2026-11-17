@@ -28,6 +28,8 @@ pub enum Key {
     Home,
     End,
     Tab,
+    /// Shift+Tab, reported as CSI Z.
+    BackTab,
     Escape,
     PageUp,
     PageDown,
@@ -649,6 +651,8 @@ impl Decoder {
                     (b"\x1b[6~", Key::PageDown),
                     (b"\x1b[12~", Key::F2),
                     (b"\x1b[[B", Key::F2),
+                    (b"\x1b[Z", Key::BackTab),
+                    (b"\x1b[9;2u", Key::BackTab),
                     (b"\x1b\r", Key::AltEnter),
                     (b"\x1b\n", Key::AltEnter),
                     // Shift+Enter and Alt+Enter from terminals that report
@@ -1173,6 +1177,14 @@ mod tests {
         assert!(d.next(false).is_none());
         d.feed(b"[A");
         assert_eq!(d.next(false), Some(Key::Up));
+    }
+    #[test]
+    fn shift_tab_is_its_own_key() {
+        let mut d = Decoder::default();
+        d.feed(b"\x1b[Z\x1b[9;2u\t");
+        assert_eq!(d.next(false), Some(Key::BackTab));
+        assert_eq!(d.next(false), Some(Key::BackTab));
+        assert_eq!(d.next(false), Some(Key::Tab));
     }
     #[test]
     fn removes_ansi_and_clipboard_sequences() {

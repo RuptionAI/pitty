@@ -19,8 +19,29 @@ pub(super) struct Approval {
     source: String,
     summary: String,
     detail: String,
+    review: chat::Review,
     response: mpsc::Sender<bool>,
     cancel: Arc<AtomicBool>,
+}
+
+/// The status line while a review waits.
+pub(super) fn review_status(approval: &Approval) -> &'static str {
+    match approval.review {
+        chat::Review::Action => {
+            "Review action · Y run once · A approve all · N / Enter decline · Ctrl+C stops"
+        }
+        chat::Review::Continue => {
+            "Long task · Y continue · A continue and approve all · N / Enter stop · Ctrl+C stops"
+        }
+    }
+}
+
+/// The answer keys under a review, as the review draws them.
+pub(super) fn answer_line(review: chat::Review) -> &'static str {
+    match review {
+        chat::Review::Action => "Y run once · A approve all · N / Enter decline",
+        chat::Review::Continue => "Y continue · A continue and approve all · N / Enter stop",
+    }
 }
 
 fn review_text(text: &str) -> String {
@@ -83,22 +104,52 @@ impl App {
         });
         sender
     }
+    /// Change Ask, Auto, or Off. Ask and Auto also update the shared policy, so
+    /// requests already running follow the new setting from their next action.
+    pub(super) fn set_tools(&mut self, setting: crate::ToolsSetting) {
+        self.args.tools = setting;
+        if setting != crate::ToolsSetting::Off {
+            self.policy.set_auto(setting == crate::ToolsSetting::Auto);
+        }
+        self.status = match setting {
+            crate::ToolsSetting::Ask => {
+                "Tools: ask · changes and commands wait for Y. Shift+Tab switches to auto."
+            }
+            crate::ToolsSetting::Auto => {
+                "Tools: auto · changes and commands run without review. Shift+Tab switches to ask."
+            }
+            crate::ToolsSetting::Off => "Tools: off · applies to new requests.",
+        }
+        .into();
+    }
+    /// Shift+Tab: switch between Ask and Auto from anywhere in the session.
+    pub(super) fn toggle_auto(&mut self) {
+        match self.args.tools {
+            crate::ToolsSetting::Off => {
+                self.status =
+                    "Local tools are off. /tools ask or /tools auto turns them on.".into();
+            }
+            crate::ToolsSetting::Ask => self.set_tools(crate::ToolsSetting::Auto),
+            crate::ToolsSetting::Auto => self.set_tools(crate::ToolsSetting::Ask),
+        }
+    }
     pub(super) fn tool_command(&mut self, name: &str, arg: &str) -> Result<(), String> {
         match name {
             "tools" => {
-                self.args.tools = match arg {
+                let setting = match arg {
                     "ask" | "on" => crate::ToolsSetting::Ask,
                     "auto" => crate::ToolsSetting::Auto,
                     "off" => crate::ToolsSetting::Off,
                     "" => self.args.tools,
                     _ => return Err("Use /tools ask, /tools auto, or /tools off.".into()),
                 };
+                self.set_tools(setting);
                 let explanation = match self.args.tools {
                     crate::ToolsSetting::Ask => {
-                        "File reads are available; changes and commands show a review first."
+                        "Ask: file reads run; changes, commands, credential reads, and web requests show a review first. Y runs one action; A approves it and switches to Auto. Long tasks check in every 16 model turns."
                     }
                     crate::ToolsSetting::Auto => {
-                        "File changes and commands run without review for new requests in this session. Commands use your account permissions."
+                        "Auto: changes, commands, and web requests run without review, including work already running, and long tasks keep going until they finish or reach the turn limit (/turns). Commands use your account permissions. Shift+Tab or /tools ask returns to Ask."
                     }
                     crate::ToolsSetting::Off => {
                         "Model file tools and commands are off. /run still runs commands you enter yourself."
@@ -113,10 +164,6 @@ impl App {
                     "/audit checks the decision log. It records approvals, declines, and runs, not file contents or command output.".into(),
                 ]);
                 self.panel(&format!("Local tools · {}", self.args.tools.label()), lines);
-                self.status = format!(
-                    "Tools: {} · applies to new requests.",
-                    self.args.tools.label()
-                );
             }
             "actions" => self.show_actions(),
             "audit" => {
@@ -239,6 +286,7 @@ impl App {
                 ToolEvent::Approval {
                     summary,
                     detail,
+                    review,
                     response,
                 } => {
                     if cancel.load(Ordering::SeqCst) {
@@ -253,13 +301,15 @@ impl App {
                         source,
                         summary,
                         detail,
+                        review,
                         response,
                         cancel,
                     });
                     self.approval_painted = None;
                     self.approval_scroll = 0;
-                    self.status =
-                        "Review action · Y run once · N or Enter decline · Ctrl+C stops".into();
+                    if let Some(approval) = self.approvals.back() {
+                        self.status = review_status(approval).into();
+                    }
                 }
                 ToolEvent::Completed { summary, output } => {
                     if let Some(index) = self.chats.iter().position(|c| c.id == chat_id) {
@@ -314,6 +364,23 @@ impl App {
         // Esc is a deliberate key and declines immediately.
         match key {
             Key::Char('y' | 'Y') if ready => self.answer_approval(true),
+            Key::Char('a' | 'A') if ready => {
+                // Approve this one and every review already waiting, then
+                // switch the session to Auto, so running work keeps going.
+                while !self.approvals.is_empty() {
+                    self.answer_approval(true);
+                }
+                self.set_tools(crate::ToolsSetting::Auto);
+                self.status = "Auto-approval on: changes and commands run without review until you press Shift+Tab or type /tools ask.".into();
+            }
+            Key::BackTab => {
+                self.toggle_auto();
+                if self.args.tools == crate::ToolsSetting::Auto {
+                    self.status =
+                        "Auto-approval on for later actions. This review still needs Y, A, or N."
+                            .into();
+                }
+            }
             Key::Enter | Key::Char('n' | 'N') if ready => self.answer_approval(false),
             Key::Escape => self.answer_approval(false),
             Key::Up => self.approval_scroll = self.approval_scroll.saturating_sub(1),
@@ -374,8 +441,9 @@ impl App {
             width,
         );
         let text = format!(
-            "{}\n\nY run once · N / Enter decline\n↑↓ / PgUp / PgDn scroll · Ctrl+C stops",
-            review_text(&approval.detail)
+            "{}\n\n{}\n↑↓ / PgUp / PgDn scroll · Ctrl+C stops",
+            review_text(&approval.detail),
+            answer_line(approval.review)
         );
         let lines = text
             .lines()
@@ -464,6 +532,7 @@ mod tests {
             .send(ToolEvent::Approval {
                 summary: "Edit hello.rs".into(),
                 detail: "Replace one line".into(),
+                review: chat::Review::Action,
                 response,
             })
             .unwrap();
@@ -482,6 +551,72 @@ mod tests {
         assert_eq!(app.input.value(), "keep my draft");
     }
     #[test]
+    fn a_approves_every_waiting_review_and_switches_to_auto() {
+        let mut app = app();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let events = app.tool_channel("Pitty".into(), cancel);
+        let mut results = Vec::new();
+        for (summary, review) in [
+            ("Edit hello.rs", chat::Review::Action),
+            ("Continue this task", chat::Review::Continue),
+        ] {
+            let (response, result) = mpsc::channel();
+            events
+                .send(ToolEvent::Approval {
+                    summary: summary.into(),
+                    detail: "Fixture".into(),
+                    review,
+                    response,
+                })
+                .unwrap();
+            results.push(result);
+        }
+        app.receive_tools();
+        app.draw(90, 30);
+        let screen = app.draw(90, 30).plain_text();
+        assert!(screen.contains("Y run once · A approve all · N / Enter decline"));
+        // A before the review has been visible long enough does nothing.
+        app.handle(Key::Char('a'));
+        assert!(results[0].try_recv().is_err());
+        app.approval_painted = Some(Instant::now() - Duration::from_secs(1));
+        app.handle(Key::Char('a'));
+        assert!(results.iter().all(|result| result.recv().unwrap()));
+        assert!(app.approvals.is_empty());
+        assert_eq!(app.args.tools, crate::ToolsSetting::Auto);
+        assert!(app.policy.auto());
+        assert!(app.status.contains("Auto-approval on"));
+    }
+
+    #[test]
+    fn shift_tab_switches_ask_and_auto_and_keeps_off() {
+        let mut app = app();
+        assert!(!app.policy.auto());
+        app.handle(Key::BackTab);
+        assert_eq!(app.args.tools, crate::ToolsSetting::Auto);
+        assert!(app.policy.auto());
+        assert!(app.draw(100, 30).plain_text().contains("tools AUTO"));
+        app.handle(Key::BackTab);
+        assert_eq!(app.args.tools, crate::ToolsSetting::Ask);
+        assert!(!app.policy.auto());
+        app.input.set("/tools off");
+        app.send();
+        app.handle(Key::BackTab);
+        assert_eq!(app.args.tools, crate::ToolsSetting::Off);
+        assert!(app.status.contains("tools are off"), "{}", app.status);
+        app.input.set("/tools auto");
+        app.send();
+        assert!(app.policy.auto());
+    }
+
+    #[test]
+    fn continue_reviews_name_their_own_answers() {
+        assert_eq!(
+            answer_line(chat::Review::Continue),
+            "Y continue · A continue and approve all · N / Enter stop"
+        );
+    }
+
+    #[test]
     fn tiny_or_resized_windows_cannot_approve_an_unseen_action() {
         let mut app = app();
         let cancel = Arc::new(AtomicBool::new(false));
@@ -491,6 +626,7 @@ mod tests {
             .send(ToolEvent::Approval {
                 summary: "Write fixture.rs".into(),
                 detail: "A complete operation to review".into(),
+                review: chat::Review::Action,
                 response,
             })
             .unwrap();
@@ -530,6 +666,7 @@ mod tests {
                 .send(ToolEvent::Approval {
                     summary: "Run command".into(),
                     detail: "pwd".into(),
+                    review: chat::Review::Action,
                     response,
                 })
                 .unwrap();

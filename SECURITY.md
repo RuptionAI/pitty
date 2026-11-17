@@ -51,6 +51,17 @@ conversation.
   stay inside `--directory`. Credential-like files are declined in every mode.
   Running commands stop when the client closes Pitty's output or when the
   server receives SIGINT, SIGTERM, or SIGHUP.
+- **Web tools.** With Pitty's own web search on, `web_search` sends a query to
+  the provider you chose and `web_fetch` downloads one page. In Ask mode each
+  one must show for review, naming the query or address and where it goes.
+  `web_fetch` must refuse loopback, private, link-local, and other reserved
+  addresses, including through redirects and DNS answers that change between
+  the check and the connection. A fetch that reaches a non-public address, or
+  a web request that runs in Ask mode without a review, is in scope.
+- **Auto-approval.** Pressing A, Shift+Tab, and `/tools` change one shared
+  setting. Turning Auto off must take effect at the next action of every
+  running request, and a long task in Ask must stop when you decline its
+  check-in.
 - **The audit log check.** `/audit` must not report an intact chain when a line
   in the middle of the log was changed, removed, or reordered. File contents and
   command output must never be written to the log.
@@ -70,9 +81,21 @@ These are documented limits:
   approved command, a `/run` or `/exec` command, or a command under
   `/tools auto` can do anything your user account can do, including reading
   files outside the working folder and using the network.
-- **`/tools auto` skips review on purpose.** It runs file changes, commands,
-  and credential-like reads without asking, for new requests in the current
-  session. In MCP mode, `--tools auto` leaves approval to the MCP client.
+- **Auto skips review on purpose.** `/tools auto`, A at a review, and
+  Shift+Tab run file changes, commands, web requests, and credential-like
+  reads without asking, including in work that is already running, until you
+  switch back. In Auto, a web page the model reads can steer what it does
+  next, including which queries and addresses it sends, so use Auto only for
+  tasks and sources you trust. In MCP mode, `--tools auto` leaves approval to
+  the MCP client.
+- **Web search providers see your queries.** DuckDuckGo, SearXNG, Brave,
+  Tavily, and OpenRouter's hosted search receive the queries sent to them, and
+  the sites `web_fetch` reads see a request from your computer. With
+  `/tools off` and web search on, the text of each message you send is the
+  query.
+- **Local model servers are trusted as you configure them.** `/local` and
+  `--local` connect to servers on this computer without a key. Pitty does not
+  verify which program answers on those ports.
 - **Local history is plain text.** Conversations, attachment snapshots, and tool
   output are saved as unencrypted JSON under `$XDG_DATA_HOME/pitty/chats`. Only
   owner-only file permissions protect them.

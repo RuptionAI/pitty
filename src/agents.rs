@@ -75,6 +75,14 @@ impl Default for Manager {
         }
     }
 }
+/// What a worker needs for local tools: its folders, where reviews and
+/// progress go, and the session's shared approval policy.
+pub struct ToolAccess {
+    pub roots: Vec<std::path::PathBuf>,
+    pub events: mpsc::Sender<chat::ToolEvent>,
+    pub policy: chat::Policy,
+}
+
 impl Manager {
     pub fn start_with_tools(
         &mut self,
@@ -82,13 +90,19 @@ impl Manager {
         args: Args,
         messages: Vec<Message>,
         task: String,
-        roots: Vec<std::path::PathBuf>,
-        events: mpsc::Sender<chat::ToolEvent>,
+        access: ToolAccess,
     ) -> Result<usize, String> {
         self.start_with(name, args, messages, task, move |args, payload, cancel| {
-            if let Some(mode) = args.tools.mode() {
-                let runtime = crate::local_tools::LocalTools::new(roots)?;
-                chat::request_with_tools(&args, payload, cancel, runtime, events, mode)
+            if args.tools != crate::ToolsSetting::Off {
+                let runtime = crate::local_tools::LocalTools::new(access.roots)?;
+                chat::request_with_tools(
+                    &args,
+                    payload,
+                    cancel,
+                    runtime,
+                    access.events,
+                    access.policy,
+                )
             } else {
                 chat::request(&args, payload, cancel)
             }

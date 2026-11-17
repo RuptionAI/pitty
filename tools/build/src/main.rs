@@ -382,7 +382,7 @@ mod tests {
     }
     #[test]
     fn version_comes_from_the_workspace_manifest() {
-        assert_eq!(workspace_version(&root()).unwrap(), "0.7.0");
+        assert_eq!(workspace_version(&root()).unwrap(), "0.8.0");
     }
     #[test]
     fn archives_go_to_the_configured_directory_or_target_dist() {

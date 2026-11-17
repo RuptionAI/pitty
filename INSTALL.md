@@ -47,7 +47,11 @@ These macOS binaries are not signed with an Apple Developer ID or notarized. mac
 3. Use `/models free` to browse models and Enter to choose one.
 4. Type a message and press Enter. Without a saved key, Pitty asks for it first and keeps your message. `/help` lists commands.
 
-OpenRouter is the default. `pitty --interface openai --model gpt-4.1-mini` uses `OPENAI_API_KEY`. `pitty --interface compatible --base-url http://127.0.0.1:11434/v1 --model llama3.2` uses `PITTY_API_KEY` when the endpoint asks for one, and sends no Authorization header when it does not. Web search and PDFs stay on OpenRouter. `/models free` is the OpenRouter catalog.
+OpenRouter is the default. `pitty --interface openai --model gpt-4.1-mini` uses `OPENAI_API_KEY`. `pitty --interface compatible --base-url http://127.0.0.1:11434/v1 --model llama3.2` uses `PITTY_API_KEY` when the endpoint asks for one, and sends no Authorization header when it does not. PDF parsing stays on OpenRouter. `/models free` is the OpenRouter catalog.
+
+To use a model on this computer instead, start a local model server such as Ollama or the local server in LM Studio, then run `pitty --local`, or type `/local` inside Pitty and choose a model. No key is needed, and chat stays on your machine.
+
+Type `/web on` to let any model search the web. Without a configured provider, searches go to DuckDuckGo, which needs no key.
 
 Bring your own key for the interface you chose. Model requests may incur provider charges. On OpenRouter, set a spending limit on the key. Free-model availability and provider limits can change.
 

@@ -14,10 +14,19 @@ use std::{
 const POLL_INTERVAL: Duration = Duration::from_millis(40);
 const APPROVAL_HINT: &str = "Action denied: approval requires interactive terminal input. Review the action in terminal chat, or explicitly choose --tools auto for unattended execution.";
 
+/// A typed answer at the terminal: `yes` allows one action, `all` allows it and
+/// every later one in this request, and anything else denies.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Answer {
+    Deny,
+    Once,
+    All,
+}
+
 pub fn run(args: &Args, prompt: String) -> Result<(), String> {
-    let mode = args
+    let policy = args
         .tools
-        .mode()
+        .policy()
         .ok_or_else(|| "Local tools are disabled.".to_string())?;
     let cwd = std::env::current_dir().map_err(|e| format!("Cannot read working folder: {e}"))?;
     let local = LocalTools::new(vec![cwd])?;
@@ -31,6 +40,7 @@ pub fn run(args: &Args, prompt: String) -> Result<(), String> {
     };
     let worker_args = args.clone();
     let worker_cancel = cancel.clone();
+    let worker_policy = policy.clone();
     let worker = std::thread::Builder::new()
         .name("pitty-cli-tools".into())
         .spawn(move || {
@@ -40,7 +50,7 @@ pub fn run(args: &Args, prompt: String) -> Result<(), String> {
                 worker_cancel,
                 local,
                 events_tx,
-                mode,
+                worker_policy,
             );
             let _ = result_tx.send(result);
         })
@@ -50,6 +60,7 @@ pub fn run(args: &Args, prompt: String) -> Result<(), String> {
         &events_rx,
         &result_rx,
         &cancel,
+        &policy,
         io::stdin().is_terminal(),
         io::stderr().is_terminal(),
         || signals::received().is_some(),
@@ -77,6 +88,7 @@ fn receive_result(
     events: &Receiver<chat::ToolEvent>,
     result: &Receiver<Result<ChatReply, String>>,
     cancel: &AtomicBool,
+    policy: &chat::Policy,
     interactive: bool,
     show_progress: bool,
     interrupted: impl Fn() -> bool,
@@ -104,18 +116,23 @@ fn receive_result(
             Ok(chat::ToolEvent::Approval {
                 summary,
                 detail,
+                review,
                 response,
             }) => {
-                let allowed = if cancel.load(Ordering::SeqCst) {
-                    false
+                let answer = if cancel.load(Ordering::SeqCst) {
+                    Answer::Deny
                 } else {
-                    request_approval(&summary, &detail, cancel, interactive, &interrupted)
+                    request_approval(&summary, &detail, review, cancel, interactive, &interrupted)
                 };
                 // Recheck after the answer. SIGINT must win over a queued yes.
                 if interrupted() {
                     cancel.store(true, Ordering::SeqCst);
                 }
-                let _ = response.send(allowed && !cancel.load(Ordering::SeqCst));
+                let allowed = answer != Answer::Deny && !cancel.load(Ordering::SeqCst);
+                if allowed && answer == Answer::All {
+                    policy.set_auto(true);
+                }
+                let _ = response.send(allowed);
             }
             Ok(chat::ToolEvent::Progress(summary)) => {
                 if show_progress && !cancel.load(Ordering::SeqCst) {
@@ -150,19 +167,31 @@ fn receive_result(
 fn request_approval(
     summary: &str,
     detail: &str,
+    review: chat::Review,
     cancel: &AtomicBool,
     interactive: bool,
     interrupted: &impl Fn() -> bool,
-) -> bool {
+) -> Answer {
     if !interactive {
         diagnostic(APPROVAL_HINT);
-        return false;
+        return Answer::Deny;
     }
-    match tty::approve(summary, detail, cancel, interrupted) {
-        Ok(allowed) => allowed,
+    match tty::approve(summary, detail, review, cancel, interrupted) {
+        Ok(answer) => answer,
         Err(_) => {
             diagnostic(APPROVAL_HINT);
-            false
+            Answer::Deny
+        }
+    }
+}
+
+fn answer_prompt(review: chat::Review) -> &'static [u8] {
+    match review {
+        chat::Review::Action => {
+            b"Type yes to allow this action, or all to allow it and every later action in this request; Enter denies: "
+        }
+        chat::Review::Continue => {
+            b"Type yes to continue, or all to continue and allow every later action in this request; Enter stops: "
         }
     }
 }
@@ -171,7 +200,11 @@ fn diagnostic(text: &str) {
     let _ = writeln!(io::stderr().lock(), "{text}");
 }
 
-fn format_reply(reply: &ChatReply, json: bool, terminal: bool) -> Result<String, String> {
+pub(crate) fn format_reply(
+    reply: &ChatReply,
+    json: bool,
+    terminal: bool,
+) -> Result<String, String> {
     if json {
         // Tool-enabled output has a stable local envelope; tool_trace contains
         // the completed protocol. Raw provider JSON remains --tools off only.
@@ -206,12 +239,17 @@ struct ApprovalAnswer {
     overflow: bool,
 }
 impl ApprovalAnswer {
-    fn push(&mut self, byte: u8) -> Option<bool> {
+    fn push(&mut self, byte: u8) -> Option<Answer> {
         if byte == b'\n' || byte == b'\r' {
-            let allowed = !self.overflow
-                && std::str::from_utf8(&self.bytes)
-                    .is_ok_and(|answer| answer.trim().eq_ignore_ascii_case("yes"));
-            return Some(allowed);
+            let typed = std::str::from_utf8(&self.bytes)
+                .ok()
+                .filter(|_| !self.overflow)
+                .map(str::trim);
+            return Some(match typed {
+                Some(answer) if answer.eq_ignore_ascii_case("yes") => Answer::Once,
+                Some(answer) if answer.eq_ignore_ascii_case("all") => Answer::All,
+                _ => Answer::Deny,
+            });
         }
         if self.bytes.len() < 128 {
             self.bytes.push(byte);
@@ -274,16 +312,17 @@ mod tty {
     pub(super) fn approve(
         summary: &str,
         detail: &str,
+        review: chat::Review,
         cancel: &AtomicBool,
         interrupted: &impl Fn() -> bool,
-    ) -> io::Result<bool> {
+    ) -> io::Result<Answer> {
         let mut tty = OpenOptions::new()
             .read(true)
             .write(true)
             .custom_flags(libc::O_NONBLOCK)
             .open("/dev/tty")?;
         if !tty.is_terminal() {
-            return Ok(false);
+            return Ok(Answer::Deny);
         }
         // Flush input queued before this specific action was shown. In
         // canonical mode this also discards an unfinished stale input line.
@@ -293,7 +332,7 @@ mod tty {
         }
         let prompt = format!("\n{}\n{}\n", approval_text(summary), approval_text(detail));
         if !write_prompt(&mut tty, prompt.as_bytes(), cancel, interrupted)? {
-            return Ok(false);
+            return Ok(Answer::Deny);
         }
         // Also discard answers typed while a long preview was still being
         // printed. Only input after the complete action can authorize it.
@@ -301,13 +340,8 @@ mod tty {
         if unsafe { tcflush(tty.as_raw_fd(), libc::TCIFLUSH) } != 0 {
             return Err(io::Error::last_os_error());
         }
-        if !write_prompt(
-            &mut tty,
-            b"Type yes to allow this action; Enter denies: ",
-            cancel,
-            interrupted,
-        )? {
-            return Ok(false);
+        if !write_prompt(&mut tty, answer_prompt(review), cancel, interrupted)? {
+            return Ok(Answer::Deny);
         }
         let mut answer = ApprovalAnswer::default();
         loop {
@@ -316,7 +350,7 @@ mod tty {
             }
             if cancel.load(Ordering::SeqCst) {
                 let _ = writeln!(tty, "\nCanceled.");
-                return Ok(false);
+                return Ok(Answer::Deny);
             }
             let mut fd = pollfd {
                 fd: tty.as_raw_fd(),
@@ -337,15 +371,18 @@ mod tty {
                 continue;
             }
             if fd.revents & (libc::POLLERR | libc::POLLHUP | libc::POLLNVAL) != 0 {
-                return Ok(false);
+                return Ok(Answer::Deny);
             }
             let mut bytes = [0u8; 256];
             match tty.read(&mut bytes) {
-                Ok(0) => return Ok(false),
+                Ok(0) => return Ok(Answer::Deny),
                 Ok(count) => {
                     for &byte in &bytes[..count] {
-                        if let Some(allowed) = answer.push(byte) {
-                            return Ok(allowed && !interrupted() && !cancel.load(Ordering::SeqCst));
+                        if let Some(typed) = answer.push(byte) {
+                            if interrupted() || cancel.load(Ordering::SeqCst) {
+                                return Ok(Answer::Deny);
+                            }
+                            return Ok(typed);
                         }
                     }
                 }
@@ -366,10 +403,11 @@ mod tty {
     pub(super) fn approve(
         _: &str,
         _: &str,
+        _: chat::Review,
         _: &AtomicBool,
         _: &impl Fn() -> bool,
-    ) -> io::Result<bool> {
-        Ok(false)
+    ) -> io::Result<Answer> {
+        Ok(Answer::Deny)
     }
 }
 
@@ -406,19 +444,24 @@ mod tests {
     }
 
     #[test]
-    fn approvals_require_exact_yes_and_bound_input() {
+    fn approvals_require_exact_words_and_bound_input() {
         for (text, expected) in [
-            ("yes\n", true),
-            (" YES \n", true),
-            ("y\n", false),
-            ("\n", false),
-            ("yes please\n", false),
-            ("yes\u{1b}[2J\n", false),
+            ("yes\n", Answer::Once),
+            (" YES \n", Answer::Once),
+            ("all\n", Answer::All),
+            (" All \n", Answer::All),
+            ("y\n", Answer::Deny),
+            ("a\n", Answer::Deny),
+            ("\n", Answer::Deny),
+            ("yes please\n", Answer::Deny),
+            ("all of it\n", Answer::Deny),
+            ("yes\u{1b}[2J\n", Answer::Deny),
         ] {
             let mut answer = ApprovalAnswer::default();
             assert_eq!(
                 text.bytes().find_map(|byte| answer.push(byte)),
-                Some(expected)
+                Some(expected),
+                "{text:?}"
             );
         }
         let mut answer = ApprovalAnswer::default();
@@ -429,8 +472,18 @@ mod tests {
         {
             assert_eq!(answer.push(byte), None);
         }
-        assert_eq!(answer.push(b'\n'), Some(false));
+        assert_eq!(answer.push(b'\n'), Some(Answer::Deny));
         assert_eq!(answer.bytes.len(), 128);
+        assert!(
+            std::str::from_utf8(answer_prompt(chat::Review::Action))
+                .unwrap()
+                .contains("all to allow it and every later action")
+        );
+        assert!(
+            std::str::from_utf8(answer_prompt(chat::Review::Continue))
+                .unwrap()
+                .contains("Enter stops")
+        );
     }
 
     #[test]
@@ -458,6 +511,7 @@ mod tests {
                 .send(chat::ToolEvent::Approval {
                     summary: "Write fixture".into(),
                     detail: "fixture only; no file is written".into(),
+                    review: chat::Review::Action,
                     response: approval_tx,
                 })
                 .unwrap();
@@ -465,8 +519,16 @@ mod tests {
             result_tx.send(Ok(reply())).unwrap();
         });
         let cancel = AtomicBool::new(false);
-        let output =
-            receive_result(&events_rx, &result_rx, &cancel, false, false, || false).unwrap();
+        let output = receive_result(
+            &events_rx,
+            &result_rx,
+            &cancel,
+            &chat::Policy::new(false),
+            false,
+            false,
+            || false,
+        )
+        .unwrap();
         assert_eq!(output.message.content, "Done.\n");
         assert!(!cancel.load(Ordering::SeqCst));
         worker.join().unwrap();
@@ -482,6 +544,7 @@ mod tests {
                 .send(chat::ToolEvent::Approval {
                     summary: "Must not execute".into(),
                     detail: String::new(),
+                    review: chat::Review::Action,
                     response: approval_tx,
                 })
                 .unwrap();
@@ -489,8 +552,16 @@ mod tests {
             result_tx.send(Err("Request canceled.".into())).unwrap();
         });
         let cancel = AtomicBool::new(false);
-        let error =
-            receive_result(&events_rx, &result_rx, &cancel, true, false, || true).unwrap_err();
+        let error = receive_result(
+            &events_rx,
+            &result_rx,
+            &cancel,
+            &chat::Policy::new(false),
+            true,
+            false,
+            || true,
+        )
+        .unwrap_err();
         assert_eq!(error, "Request canceled.");
         assert!(cancel.load(Ordering::SeqCst));
         worker.join().unwrap();

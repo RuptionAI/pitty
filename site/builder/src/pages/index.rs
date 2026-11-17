@@ -48,7 +48,7 @@ fn review(summary: &str, detail: &[Line<'static>]) -> Vec<Line<'static>> {
     lines.extend(detail.iter().map(|(class, text)| (*class, text.clone())));
     lines.extend([
         blank(),
-        plain("Y run once · N / Enter decline"),
+        plain("Y run once · A approve all · N / Enter decline"),
         styled("muted", "↑↓ / PgUp / PgDn scroll · Ctrl+C stops"),
     ]);
     lines
@@ -196,7 +196,7 @@ fn demo() -> String {
     let statuses = [
         (
             "wait",
-            "Review action · Y run once · N / Enter decline · Ctrl+C stops",
+            "Review action · Y run once · A approve all · N / Enter decline · Ctrl+C stops",
         ),
         (
             "yes",
@@ -293,8 +293,8 @@ pub fn page() -> Page {
     };
     let checks = said(&[
         (
-            "Y run once · N / Enter decline",
-            "Ask is the mode Pitty starts in. File changes, commands, and reads of credential-like files wait on screen until you answer. Y runs that one action once; the next one asks again.",
+            "Y run once · A approve all · N / Enter decline",
+            "Ask is the mode Pitty starts in. File changes, commands, web requests, and reads of credential-like files wait on screen until you answer. Y runs that one action once. A approves it and switches to Auto, where the rest of the task runs without stopping; Shift+Tab switches back at any time.",
         ),
         (
             "File changed after approval; prepare the edit again.",
@@ -319,8 +319,16 @@ pub fn page() -> Page {
             "OpenAI. You name the model, and the key is <code>OPENAI_API_KEY</code>.",
         ),
         (
+            "pitty --local",
+            "A model on this computer. Pitty finds a running Ollama, LM Studio, llama.cpp, vLLM, Jan, or GPT4All server and lists its models; inside Pitty, type <code>/local</code>. Chat stays on your machine and needs no key.",
+        ),
+        (
             "pitty --interface compatible --base-url http://127.0.0.1:11434/v1 --model llama3.2",
-            "Any endpoint that speaks the same chat protocol, including one on your own machine. A key is optional.",
+            "Any other endpoint that speaks the same chat protocol. A key is optional.",
+        ),
+        (
+            "/web on",
+            "Web search for every model, local ones included. Pitty searches DuckDuckGo with no key, or your SearXNG, Brave, or Tavily, reads pages the model picks, and lists the sources under the answer. Each search shows for review in Ask mode.",
         ),
         (
             "pitty --mcp --directory /path/to/project --tools ask",
@@ -353,7 +361,7 @@ pub fn page() -> Page {
 {checks}
 </section>
 <section class="section wrap" aria-labelledby="models-title">
-<div class="section-head"><h2 id="models-title">Any model. The same review.</h2><p>Chat goes wherever you point it. The review in front of each action stays.</p></div>
+<div class="section-head"><h2 id="models-title">Any model, cloud or local. The same review.</h2><p>Chat goes wherever you point it, including a model on your own machine. The review in front of each action stays.</p></div>
 {models}
 <p class="section-link"><a class="text-link" href="/mcp/">Connect an MCP client</a></p>
 </section>
@@ -411,9 +419,9 @@ mod tests {
             "Review · Pitty · Edit /Users/you/hello/src/main.rs",
             "Exact old text:",
             "Replacement:",
-            "Y run once · N / Enter decline",
+            "Y run once · A approve all · N / Enter decline",
             "↑↓ / PgUp / PgDn scroll · Ctrl+C stops",
-            "Review action · Y run once · N / Enter decline · Ctrl+C stops",
+            "Review action · Y run once · A approve all · N / Enter decline · Ctrl+C stops",
             "Action declined.",
             "Wrote 38 bytes to src/main.rs.",
             "Message, or / for commands…",

@@ -5,6 +5,50 @@ All notable changes to Pitty are recorded here. The format is based on
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-17
+
+### Added
+
+- Local models. `/local` and `pitty --local` find model servers on this
+  computer (Ollama, LM Studio, llama.cpp, vLLM, Jan, GPT4All, and Docker Model
+  Runner on their usual ports, and Ollama at `OLLAMA_HOST`), list every model
+  they serve, and switch chat to the one you choose. Probes go to this
+  computer only, never through a proxy. `/interface local` does the same.
+- Web search for every model. `web_search` and `web_fetch` let any model
+  with function calling search and read pages through DuckDuckGo (no key), a
+  SearXNG instance, Brave Search (`BRAVE_SEARCH_API_KEY`), or Tavily
+  (`TAVILY_API_KEY`), chosen with `/web duckduckgo|searxng URL|brave|tavily`,
+  `--search`, `--search-url`, or `PITTY_SEARCH`. The URLs searched and read are
+  listed under the answer. With `/tools off`, Pitty searches the message first
+  and passes the results to the model. OpenRouter keeps its hosted search
+  unless you choose a provider.
+- `web_fetch` refuses loopback, private, link-local, and other reserved
+  addresses, checks each redirect the same way, and pins the address it
+  checked. In Ask mode every search and fetch shows for review.
+- Auto-approval. At a review, A approves the action and any other review
+  waiting, and switches the session to Auto. Shift+Tab switches between Ask
+  and Auto at any time. The setting is shared with running requests and
+  parallel agents, so a switch applies from their next action.
+- `/turns` and `--max-turns` set how many model turns one request may use
+  (default 100, up to 1000).
+- In one-shot mode, typing `all` at a review allows the action and the rest of
+  the request.
+
+### Changed
+
+- A long task no longer stops after 16 model turns. In Ask it checks in every
+  16 turns (Y continue, A continue in Auto, N stop); in Auto it continues until
+  it finishes or reaches the turn limit.
+- The review line reads `Y run once · A approve all · N / Enter decline`, and
+  the footer shows `tools AUTO` while auto-approval is on.
+- `/models` lists the models of the current interface, sending the
+  interface's key to OpenAI and keyed endpoints. It previously sent no key, so
+  listing OpenAI models failed.
+- Web search is no longer limited to the OpenRouter interface, and switching
+  interfaces keeps it on.
+- The tool instructions and your `/system` text are sent as one leading system
+  message, which some local chat templates require.
+
 ## [0.7.0] - 2026-11-16
 
 This covers everything since 0.6.0. A 0.6.1 build was offered on pitty.tech

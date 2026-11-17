@@ -97,8 +97,11 @@ impl App {
             args,
             messages,
             task.to_string(),
-            roots,
-            events,
+            crate::agents::ToolAccess {
+                roots,
+                events,
+                policy: self.policy.clone(),
+            },
         )?;
         if let Some(cancel) = self.agents.cancellation(id) {
             self.tool_streams.push(tools_view::ToolStream {

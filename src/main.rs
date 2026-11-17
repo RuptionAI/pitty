@@ -18,6 +18,7 @@ mod cli_tools;
 mod engine;
 mod folders;
 mod interface;
+mod local;
 mod local_tools;
 mod mcp;
 mod paths;
@@ -26,6 +27,7 @@ mod profile;
 mod signals;
 mod transcript;
 mod tui;
+mod web;
 use interface::InterfaceKind;
 use pitty_core::MODEL;
 const RESPONSE_LIMIT: usize = 8 * 1024 * 1024;
@@ -47,10 +49,11 @@ impl ToolsSetting {
             Self::Off => "off",
         }
     }
-    fn mode(self) -> Option<chat::ToolMode> {
+    /// A fresh approval policy for this setting; `None` when tools are off.
+    fn policy(self) -> Option<chat::Policy> {
         match self {
-            Self::Ask => Some(chat::ToolMode::Ask),
-            Self::Auto => Some(chat::ToolMode::Auto),
+            Self::Ask => Some(chat::Policy::new(false)),
+            Self::Auto => Some(chat::Policy::new(true)),
             Self::Off => None,
         }
     }
@@ -60,7 +63,7 @@ impl ToolsSetting {
 #[derive(Parser, Debug, Clone)]
 #[command(
     version,
-    after_help = "Examples:\n  pitty                     # open terminal chat\n  pitty \"Explain Rust ownership\"\n  pitty --interface openai --model gpt-4.1-mini \"Explain Rust ownership\"\n  pitty --interface compatible --base-url http://127.0.0.1:11434/v1 --model llama3.2\n\nKey: the variable for the interface, or $XDG_CONFIG_HOME/pitty/.env\n     (defaults to ~/.config/pitty/.env).\n     OPENROUTER_API_KEY, OPENAI_API_KEY, or PITTY_API_KEY."
+    after_help = "Examples:\n  pitty                     # open terminal chat\n  pitty \"Explain Rust ownership\"\n  pitty --interface openai --model gpt-4.1-mini \"Explain Rust ownership\"\n  pitty --interface compatible --base-url http://127.0.0.1:11434/v1 --model llama3.2\n  pitty --local             # use a model server on this computer (Ollama, LM Studio, ...)\n  pitty --web --search duckduckgo \"What changed in Rust 1.98?\"\n\nKey: the variable for the interface, or $XDG_CONFIG_HOME/pitty/.env\n     (defaults to ~/.config/pitty/.env).\n     OPENROUTER_API_KEY, OPENAI_API_KEY, or PITTY_API_KEY."
 )]
 struct Args {
     /// Chat endpoint. openrouter is the default; openai and compatible use the same review
@@ -69,6 +72,21 @@ struct Args {
     /// Base URL for --interface compatible, such as http://127.0.0.1:11434/v1
     #[arg(long, value_name = "URL")]
     base_url: Option<String>,
+    /// Use a model server on this computer (Ollama, LM Studio, llama.cpp, vLLM, Jan, ...)
+    #[arg(long, conflicts_with_all = ["interface", "base_url", "mcp"])]
+    local: bool,
+    /// Where web searches go: duckduckgo (no key), searxng (with --search-url),
+    /// brave (BRAVE_SEARCH_API_KEY), tavily (TAVILY_API_KEY), or openrouter
+    /// (its hosted search). Default: openrouter on OpenRouter, otherwise the
+    /// first configured of searxng, brave, tavily, then duckduckgo
+    #[arg(long, value_enum, value_name = "PROVIDER")]
+    search: Option<SearchChoice>,
+    /// SearXNG address for web search, such as http://127.0.0.1:8888
+    #[arg(long, value_name = "URL")]
+    search_url: Option<String>,
+    /// Most model turns one request may use. Ask checks in every 16 turns
+    #[arg(long, default_value_t = 100, value_parser = clap::value_parser!(u32).range(1..=1000))]
+    max_turns: u32,
     /// Serve local file and command tools over MCP stdio (requires --directory)
     #[arg(long, conflicts_with_all = ["chat", "prompt"], requires = "directory")]
     mcp: bool,
@@ -81,7 +99,7 @@ struct Args {
     /// Model id for the selected chat interface
     #[arg(long, default_value = MODEL)]
     model: String,
-    /// Allow model-directed web search (additional search charges may apply)
+    /// Let the model search the web (see --search for where searches go)
     #[arg(long)]
     web: bool,
     /// Open the terminal chat (also the default without a prompt)
@@ -112,16 +130,102 @@ struct Args {
     key_file: Option<PathBuf>,
 }
 
+/// Where web searches go, chosen with --search or /web.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+#[value(rename_all = "lower")]
+pub(crate) enum SearchChoice {
+    /// DuckDuckGo's HTML results, no key needed
+    DuckDuckGo,
+    /// A SearXNG instance, often your own (--search-url)
+    SearXng,
+    /// Brave Search API (BRAVE_SEARCH_API_KEY)
+    Brave,
+    /// Tavily API (TAVILY_API_KEY)
+    Tavily,
+    /// OpenRouter's hosted search (OpenRouter interface only)
+    OpenRouter,
+}
+impl SearchChoice {
+    pub(crate) fn parse(name: &str) -> Option<Self> {
+        Self::from_str(name, true).ok()
+    }
+}
+
+/// How a turn searches the web.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum WebSearch {
+    Off,
+    /// OpenRouter's server tool searches during the model request.
+    Hosted,
+    /// Pitty searches and fetches through this provider.
+    Pitty(web::Provider),
+}
+
 impl Args {
     pub(crate) fn prepare(&self) -> Result<(), String> {
         let _ = self.chat_endpoint()?;
-        if self.web && !self.interface.extensions() {
-            return Err(
-                "Web search belongs to the OpenRouter interface. Leave --web off, or use --interface openrouter."
-                    .into(),
-            );
+        if let Some(url) = &self.search_url {
+            web::normalize_searxng_url(url)?;
         }
+        // Report a missing search key or address before any model request.
+        self.web_search()?;
         Ok(())
+    }
+    /// The SearXNG address from --search-url or PITTY_SEARXNG_URL.
+    fn searxng_url(&self) -> Option<String> {
+        self.search_url
+            .clone()
+            .or_else(|| env::var("PITTY_SEARXNG_URL").ok())
+            .filter(|url| !url.trim().is_empty())
+    }
+    pub(crate) fn web_search(&self) -> Result<WebSearch, String> {
+        if !self.web {
+            return Ok(WebSearch::Off);
+        }
+        let choice = match self.search {
+            Some(choice) => Some(choice),
+            None => match env::var("PITTY_SEARCH") {
+                Ok(name) if !name.trim().is_empty() => {
+                    Some(SearchChoice::parse(name.trim()).ok_or(
+                        "PITTY_SEARCH must be duckduckgo, searxng, brave, tavily, or openrouter.",
+                    )?)
+                }
+                _ => None,
+            },
+        };
+        let choice = match choice {
+            Some(choice) => choice,
+            None if self.interface.extensions() => SearchChoice::OpenRouter,
+            None if self.searxng_url().is_some() => SearchChoice::SearXng,
+            None if secret(self, "BRAVE_SEARCH_API_KEY").is_some() => SearchChoice::Brave,
+            None if secret(self, "TAVILY_API_KEY").is_some() => SearchChoice::Tavily,
+            None => SearchChoice::DuckDuckGo,
+        };
+        let provider = match choice {
+            SearchChoice::OpenRouter if self.interface.extensions() => {
+                return Ok(WebSearch::Hosted);
+            }
+            SearchChoice::OpenRouter => {
+                return Err("OpenRouter's hosted search needs the OpenRouter interface. Use /web duckduckgo, searxng, brave, or tavily.".into());
+            }
+            SearchChoice::DuckDuckGo => web::Provider::DuckDuckGo,
+            SearchChoice::SearXng => web::Provider::SearXng {
+                base: web::normalize_searxng_url(&self.searxng_url().ok_or(
+                    "Set the SearXNG address: /web searxng URL, --search-url URL, or PITTY_SEARXNG_URL.",
+                )?)?,
+            },
+            SearchChoice::Brave => web::Provider::Brave {
+                key: secret(self, "BRAVE_SEARCH_API_KEY").ok_or(
+                    "Set BRAVE_SEARCH_API_KEY in your environment or in ~/.config/pitty/.env.",
+                )?,
+            },
+            SearchChoice::Tavily => web::Provider::Tavily {
+                key: secret(self, "TAVILY_API_KEY").ok_or(
+                    "Set TAVILY_API_KEY in your environment or in ~/.config/pitty/.env.",
+                )?,
+            },
+        };
+        Ok(WebSearch::Pitty(provider))
     }
     pub(crate) fn chat_endpoint(&self) -> Result<String, String> {
         interface::chat_endpoint(self.interface, self.base_url.as_deref())
@@ -275,6 +379,60 @@ fn load_key(args: &Args) -> Result<String, String> {
     }
 }
 
+/// A secondary credential, such as a search API key: the environment first,
+/// then the same key file as the chat key. Missing or unreadable is `None`.
+pub(crate) fn secret(args: &Args, var: &str) -> Option<String> {
+    if let Ok(value) = env::var(var)
+        && !value.trim().is_empty()
+    {
+        return key_value(&value).ok();
+    }
+    let path = args
+        .key_file
+        .clone()
+        .map(Ok)
+        .unwrap_or_else(config_path)
+        .ok()?;
+    let file = open_key_file(&path, InterfaceKind::Compatible).ok()?;
+    file_key(file, var).ok()
+}
+
+pub(crate) const NO_LOCAL_SERVER: &str = "No model server answered on this computer. Start one, for example `ollama serve` and `ollama pull llama3.2`, or the local server in LM Studio, then try again. Pitty looks for Ollama (port 11434, or OLLAMA_HOST), LM Studio (1234), llama.cpp (8080), vLLM (8000), Jan (1337), GPT4All (4891), and Docker Model Runner (12434). For another address, use --interface compatible --base-url URL.";
+
+/// `--local`: the server on this computer that serves the requested model, or
+/// the first one that serves any model.
+fn use_local(mut args: Args) -> Result<Args, String> {
+    let servers = local::detect(&std::sync::Arc::new(std::sync::atomic::AtomicBool::new(
+        false,
+    )));
+    let chosen = if args.model == MODEL {
+        servers.iter().find(|server| !server.models.is_empty())
+    } else {
+        servers
+            .iter()
+            .find(|server| server.models.contains(&args.model))
+    };
+    let Some(server) = chosen else {
+        return Err(match servers.first() {
+            None => NO_LOCAL_SERVER.into(),
+            Some(server) if args.model == MODEL => format!(
+                "{} is running at {} but serves no models yet. With Ollama, run `ollama pull llama3.2`.",
+                server.name, server.base_url
+            ),
+            Some(_) => format!(
+                "No model server on this computer serves {}. Run pitty --local without --model to use the first local model.",
+                args.model
+            ),
+        });
+    };
+    if args.model == MODEL {
+        args.model = server.models[0].clone();
+    }
+    args.interface = InterfaceKind::Compatible;
+    args.base_url = Some(server.base_url.clone());
+    Ok(args)
+}
+
 fn combine_prompt(words: &[String], stdin: &str) -> Result<String, String> {
     let instruction = words.join(" ");
     match (instruction.trim().is_empty(), stdin.trim().is_empty()) {
@@ -336,6 +494,7 @@ fn answer(value: &Value) -> Result<&str, String> {
 }
 
 fn run(args: Args) -> Result<(), String> {
+    let args = if args.local { use_local(args)? } else { args };
     args.prepare()?;
     if let Some(directory) = &args.directory {
         env::set_current_dir(directory)
@@ -367,6 +526,17 @@ fn run(args: Args) -> Result<(), String> {
     }
     if args.tools != ToolsSetting::Off {
         return cli_tools::run(&args, prompt);
+    }
+    if matches!(args.web_search()?, WebSearch::Pitty(_)) {
+        // Pitty searches before asking the model, so the reply is a ChatReply.
+        let payload = pitty_core::ChatRequest {
+            messages: vec![pitty_core::Message::user(prompt)],
+        };
+        let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let reply = chat::request(&args, &payload, cancel)?;
+        let output = cli_tools::format_reply(&reply, args.json, io::stdout().is_terminal())?;
+        return writeln!(io::stdout().lock(), "{output}")
+            .map_err(|e| format!("Cannot write response: {e}"));
     }
     let key = load_key(&args)?;
     let client = Client::builder()

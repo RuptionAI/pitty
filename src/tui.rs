@@ -359,6 +359,10 @@ struct App {
     interrupt_armed: bool,
     models: Vec<chat::Model>,
     models_rx: Option<Receiver<Result<Vec<chat::Model>, String>>>,
+    /// Model servers found on this computer by `/local`.
+    local_rx: Option<Receiver<Vec<crate::local::Server>>>,
+    /// Ask or Auto, shared with every running request (see `chat::Policy`).
+    policy: chat::Policy,
     picker: Option<Picker>,
     picker_index: usize,
     picker_rows: usize,
@@ -429,6 +433,7 @@ impl App {
         chats.sort_by_key(|c| c.updated);
         chats.push(Conversation::new(&args.model));
         let active = chats.len() - 1;
+        let auto = args.tools == crate::ToolsSetting::Auto;
         Self {
             args,
             chats,
@@ -479,6 +484,8 @@ impl App {
             interrupt_armed: false,
             models: vec![],
             models_rx: None,
+            local_rx: None,
+            policy: chat::Policy::new(auto),
             picker: None,
             picker_index: 0,
             picker_rows: 5,
@@ -597,7 +604,7 @@ impl App {
                 kind => kind.label().into(),
             };
             self.status = format!(
-                "Chat interface: {detail}. Use /interface openrouter, openai, or compatible BASE_URL."
+                "Chat interface: {detail}. Use /interface openrouter, openai, local, or compatible BASE_URL."
             );
             return Ok(());
         }
@@ -611,11 +618,17 @@ impl App {
                 (InterfaceKind::Compatible, Some(rest.to_string()))
             }
             "compatible" => return Err("Use /interface compatible BASE_URL.".into()),
+            "local" if rest.is_empty() => {
+                self.find_local_models();
+                return Ok(());
+            }
             "openrouter" | "openai" => {
                 return Err(format!("Use /interface {name} with no extra text."));
             }
             _ => {
-                return Err("Use /interface openrouter, openai, or compatible BASE_URL.".into());
+                return Err(
+                    "Use /interface openrouter, openai, local, or compatible BASE_URL.".into(),
+                );
             }
         };
         if self.args.interface == kind && self.args.base_url.as_deref() == base.as_deref() {
@@ -624,8 +637,9 @@ impl App {
         }
         self.args.interface = kind;
         self.args.base_url = base;
-        if !kind.extensions() {
-            self.args.web = false;
+        // OpenRouter's hosted search exists only there; elsewhere Pitty searches.
+        if !kind.extensions() && self.args.search == Some(crate::SearchChoice::OpenRouter) {
+            self.args.search = None;
         }
         self.models.clear();
         self.new_chat();
@@ -634,8 +648,18 @@ impl App {
             .base_url
             .clone()
             .unwrap_or_else(|| kind.label().into());
+        let web = match self.args.web_search() {
+            Ok(crate::WebSearch::Pitty(provider)) => {
+                format!(" Web search goes through {}.", provider.label())
+            }
+            Ok(_) => String::new(),
+            Err(error) => {
+                self.args.web = false;
+                format!(" Web search is off: {error}")
+            }
+        };
         self.status = format!(
-            "Chat interface {place}. Choose /model for this interface. New conversation started; no prompt sent."
+            "Chat interface {place}. Choose /model for this interface. New conversation started; no prompt sent.{web}"
         );
         Ok(())
     }
@@ -839,14 +863,161 @@ impl App {
                 return;
             }
         };
+        // The OpenRouter catalog is public; OpenAI and keyed endpoints list
+        // their models only for the interface's key.
+        let key = if self.args.interface.extensions() {
+            String::new()
+        } else {
+            crate::load_key(&self.args).unwrap_or_default()
+        };
         let (tx, rx) = mpsc::channel();
         self.models_rx = Some(rx);
         let cancel = Arc::new(AtomicBool::new(false));
         self.cancel = Some(cancel.clone());
         std::thread::spawn(move || {
-            let _ = tx.send(chat::models(&url, cancel));
+            let _ = tx.send(chat::models(&url, &key, cancel));
         });
-        self.status = "Loading the model catalog… Esc cancels.".into();
+        self.status = "Loading the model list… Esc cancels.".into();
+    }
+    /// `/local`: look for model servers on this computer in the background.
+    fn find_local_models(&mut self) {
+        if self.local_rx.is_some() {
+            return;
+        }
+        let (tx, rx) = mpsc::channel();
+        self.local_rx = Some(rx);
+        std::thread::spawn(move || {
+            let _ = tx.send(crate::local::detect(&Arc::new(AtomicBool::new(false))));
+        });
+        self.status = "Looking for model servers on this computer…".into();
+    }
+    /// Show what `/local` found: a picker of local models, or how to start one.
+    fn show_local_models(&mut self, servers: Vec<crate::local::Server>) {
+        let models: Vec<chat::Model> = servers
+            .iter()
+            .flat_map(|server| {
+                server
+                    .models
+                    .iter()
+                    .map(|id| chat::Model::local(id.clone(), &server.name, &server.base_url))
+            })
+            .collect();
+        if models.is_empty() {
+            let mut lines = Vec::new();
+            if servers.is_empty() {
+                lines.push(crate::NO_LOCAL_SERVER.into());
+            } else {
+                for server in &servers {
+                    lines.push(format!(
+                        "{} is running at {} but serves no models yet.",
+                        server.name, server.base_url
+                    ));
+                }
+                lines.push(String::new());
+                lines.push("With Ollama, run: ollama pull llama3.2".into());
+                lines
+                    .push("In LM Studio, download a model and load it in the local server.".into());
+            }
+            lines.push(String::new());
+            lines.push("Then type /local again. Local models that support function calling can use Pitty's file tools; for chat-only models, type /tools off.".into());
+            self.panel("Local models", lines);
+            self.status = "No local models yet.".into();
+            return;
+        }
+        let names: Vec<&str> = servers
+            .iter()
+            .filter(|server| !server.models.is_empty())
+            .map(|server| server.name.as_str())
+            .collect();
+        let count = models.len();
+        self.models = models;
+        self.open_picker(Picker::Models, "");
+        self.status = format!(
+            "{count} local model{} on {} · ↑↓ choose · Enter select · Esc back",
+            if count == 1 { "" } else { "s" },
+            names.join(", ")
+        );
+    }
+    /// `/web`: on, off, toggle, or choose where searches go.
+    fn web_command(&mut self, arg: &str) -> Result<(), String> {
+        let (name, rest) = arg.split_once(char::is_whitespace).unwrap_or((arg, ""));
+        let rest = rest.trim();
+        let previous = (
+            self.args.web,
+            self.args.search,
+            self.args.search_url.clone(),
+        );
+        match name {
+            "" => self.args.web = !self.args.web,
+            "on" => self.args.web = true,
+            "off" => self.args.web = false,
+            provider => {
+                let choice = crate::SearchChoice::parse(provider).ok_or(
+                    "Use /web on, /web off, or /web duckduckgo, searxng URL, brave, tavily, or openrouter.",
+                )?;
+                if choice == crate::SearchChoice::SearXng && !rest.is_empty() {
+                    self.args.search_url = Some(crate::web::normalize_searxng_url(rest)?);
+                } else if !rest.is_empty() {
+                    return Err(format!("Use /web {provider} with no extra text."));
+                }
+                self.args.search = Some(choice);
+                self.args.web = true;
+            }
+        }
+        // A missing key or address is reported now, not after the next message.
+        let search = match self.args.web_search() {
+            Ok(search) => search,
+            Err(error) => {
+                (self.args.web, self.args.search, self.args.search_url) = previous;
+                return Err(error);
+            }
+        };
+        self.status = self.web_status(&search);
+        Ok(())
+    }
+    fn web_status(&self, search: &crate::WebSearch) -> String {
+        match search {
+            crate::WebSearch::Off => "Web search off. No search tool is sent.".into(),
+            crate::WebSearch::Hosted => "Web search on through OpenRouter's hosted search; searches may add charges. Applies to the next message.".into(),
+            crate::WebSearch::Pitty(provider) if self.args.tools == crate::ToolsSetting::Off => format!(
+                "Web search on through {} ({}). With tools off, each message you send is searched first, and the results go to the model with it.",
+                provider.label(),
+                provider.destination()
+            ),
+            crate::WebSearch::Pitty(provider) => format!(
+                "Web search on through {} ({}). The model can search and read pages{}.",
+                provider.label(),
+                provider.destination(),
+                if self.policy.auto() {
+                    ""
+                } else {
+                    "; each request shows for approval"
+                }
+            ),
+        }
+    }
+    /// Switch chat to a model on a server on this computer.
+    fn use_local_model(&mut self, id: &str, server: &str, base: &str) -> Result<(), String> {
+        if self.pending.is_some() {
+            return Err("A request is active. Ctrl+C stops it.".into());
+        }
+        crate::interface::check_model_id(InterfaceKind::Compatible, id)?;
+        let _ = crate::interface::chat_endpoint(InterfaceKind::Compatible, Some(base))?;
+        if self.args.search == Some(crate::SearchChoice::OpenRouter) {
+            self.args.search = None;
+        }
+        self.args.interface = InterfaceKind::Compatible;
+        self.args.base_url = Some(base.to_string());
+        self.args.model = id.to_string();
+        let draft = self.input.value();
+        let attachments = std::mem::take(&mut self.attachments);
+        self.new_chat();
+        self.input.set(&draft);
+        self.attachments = attachments;
+        self.status = format!(
+            "Using {id} on {server} ({base}). Chat stays on this computer. New conversation started; no prompt sent."
+        );
+        Ok(())
     }
     fn handle_picker(&mut self, key: Key) {
         if self.picker == Some(Picker::Files) {
@@ -888,9 +1059,13 @@ impl App {
             Key::Enter => {
                 if self.picker == Some(Picker::Models) {
                     if let Some(&index) = self.model_matches().get(self.picker_index) {
-                        let id = self.models[index].id.clone();
+                        let model = self.models[index].clone();
                         self.close_picker();
-                        if let Err(e) = self.command("model", &id) {
+                        let chosen = match &model.server {
+                            Some((server, base)) => self.use_local_model(&model.id, server, base),
+                            None => self.command("model", &model.id),
+                        };
+                        if let Err(e) = chosen {
                             self.status = e;
                         }
                     }
@@ -1019,6 +1194,9 @@ impl App {
                     "Drag over chat text · click [Copy selection] or Ctrl+Y".into(),
                     "Esc clears a selection · F2 uses native terminal selection".into(),
                     "Ctrl+C stop; press again to request closing".into(),
+                    "Shift+Tab switches tools between ask and auto".into(),
+                    "At a review: Y runs once · A approves this and the rest · N, Enter, or Esc declines".into(),
+                    "/local finds Ollama, LM Studio, llama.cpp, and other servers on this computer".into(),
                     "In a peer room, Enter talks to people; arrows move ASCII art.".into(),
                     "// starts a message with a literal slash".into(),
                 ]);
@@ -1207,11 +1385,16 @@ impl App {
                     }
                 } else {
                     let id = if let Ok(n) = arg.parse::<usize>() {
-                        self.models
+                        let model = self
+                            .models
                             .get(n.saturating_sub(1))
                             .filter(|_| n > 0)
-                            .map(|m| m.id.clone())
-                            .ok_or("Use a number shown in /models.")?
+                            .cloned()
+                            .ok_or("Use a number shown in /models or /local.")?;
+                        if let Some((server, base)) = &model.server {
+                            return self.use_local_model(&model.id, server, base);
+                        }
+                        model.id
                     } else {
                         arg.into()
                     };
@@ -1237,31 +1420,40 @@ impl App {
                 }
             }
             "models" => {
+                // A list from /local belongs to local servers; list this
+                // interface's own models instead.
+                if self.models.first().is_some_and(|m| m.server.is_some()) {
+                    self.models.clear();
+                }
                 self.open_picker(Picker::Models, arg);
                 if self.models.is_empty() {
                     self.load_models();
                 }
             }
-            "web" => {
-                if !self.args.interface.extensions() {
-                    return Err(
-                        "Web search belongs to the OpenRouter interface. Use /interface openrouter."
-                            .into(),
-                    );
+            "local" => {
+                if !arg.is_empty() {
+                    return Err("Type /local alone.".into());
                 }
-                self.args.web = match arg {
-                    "on" => true,
-                    "off" => false,
-                    "" => !self.args.web,
-                    _ => return Err("Use /web on or /web off.".into()),
-                };
-                self.status = if self.args.web {
-                    "Web search ON · searches may add charges. Applies to the next message."
-                } else {
-                    "Web search OFF · no search tool will be sent."
+                if self.pending.is_some() {
+                    return Err("A request is active. Ctrl+C stops it.".into());
                 }
-                .into();
+                self.find_local_models();
             }
+            "turns" => {
+                if !arg.is_empty() {
+                    self.args.max_turns = arg
+                        .parse::<u32>()
+                        .ok()
+                        .filter(|n| (1..=1000).contains(n))
+                        .ok_or("Use /turns with a number from 1 to 1000.")?;
+                }
+                self.status = format!(
+                    "One request may use up to {} model turns. Ask checks in every {}; Auto keeps going.",
+                    self.args.max_turns,
+                    chat::CHECK_IN_TURNS
+                );
+            }
+            "web" => self.web_command(arg)?,
             "status" => self.panel(
                 "Session settings",
                 vec![
@@ -1271,17 +1463,42 @@ impl App {
                         self.args
                             .base_url
                             .as_deref()
-                            .map(|url| format!(" · {url}"))
+                            .map(|url| if crate::local::is_loopback(url) {
+                                format!(" · {url} (this computer)")
+                            } else {
+                                format!(" · {url}")
+                            })
                             .unwrap_or_default()
                     ),
                     format!("Model: {}", self.args.model),
-                    format!("Local tools: {}", self.args.tools.label()),
+                    format!(
+                        "Local tools: {}",
+                        match self.args.tools {
+                            crate::ToolsSetting::Ask => {
+                                "ask (each change and command waits for Y; Shift+Tab for auto)"
+                            }
+                            crate::ToolsSetting::Auto => {
+                                "auto (changes and commands run without review; Shift+Tab for ask)"
+                            }
+                            crate::ToolsSetting::Off => "off",
+                        }
+                    ),
+                    format!(
+                        "Model turns per request: up to {} (Ask checks in every {})",
+                        self.args.max_turns,
+                        chat::CHECK_IN_TURNS
+                    ),
                     format!(
                         "Web search: {}",
-                        if self.args.web {
-                            "on (additional charges may apply)"
-                        } else {
-                            "off"
+                        match self.args.web_search() {
+                            Ok(crate::WebSearch::Off) => "off".to_string(),
+                            Ok(crate::WebSearch::Hosted) => {
+                                "on, OpenRouter's hosted search (charges may apply)".to_string()
+                            }
+                            Ok(crate::WebSearch::Pitty(provider)) => {
+                                format!("on, {} ({})", provider.label(), provider.destination())
+                            }
+                            Err(error) => format!("unavailable: {error}"),
                         }
                     ),
                     format!("Output limit: {} tokens", self.args.max_tokens),
@@ -2096,12 +2313,13 @@ impl App {
         self.pending_actions.clear();
         let roots = self.tool_roots();
         let events = self.tool_channel("Pitty".into(), cancel.clone());
+        let policy = self.policy.clone();
         std::thread::spawn(move || {
-            let result = if let Some(mode) = args.tools.mode() {
+            let result = if args.tools != crate::ToolsSetting::Off {
                 roots
                     .and_then(crate::local_tools::LocalTools::new)
                     .and_then(|runtime| {
-                        chat::request_with_tools(&args, &request, cancel, runtime, events, mode)
+                        chat::request_with_tools(&args, &request, cancel, runtime, events, policy)
                     })
             } else {
                 chat::request(&args, &request, cancel)
@@ -2226,6 +2444,15 @@ impl App {
             if self.scroll_anchor.is_none() {
                 self.scroll_back = 0;
             }
+        }
+        if let Some(servers) = self.local_rx.as_ref().and_then(|r| match r.try_recv() {
+            Ok(servers) => Some(servers),
+            Err(mpsc::TryRecvError::Disconnected) => Some(Vec::new()),
+            Err(mpsc::TryRecvError::Empty) => None,
+        }) {
+            changed = true;
+            self.local_rx = None;
+            self.show_local_models(servers);
         }
         if let Some(result) = self.models_rx.as_ref().and_then(|r| match r.try_recv() {
             Ok(v) => Some(v),
@@ -2414,6 +2641,13 @@ impl App {
         }
         if self.welcome_fade.is_none() {
             self.welcome_fade = Some(Instant::now());
+        }
+
+        // Shift+Tab switches Ask and Auto from anywhere except the masked key
+        // field. Running requests follow the new setting from their next action.
+        if key == Key::BackTab && !self.key_mode && !self.confirm_quit {
+            self.toggle_auto();
+            return;
         }
 
         if self.key_mode {
@@ -2633,7 +2867,9 @@ impl App {
                 y,
                 &format!(
                     "MODELS · {} · {} matches",
-                    if self.free_only {
+                    if self.models.first().is_some_and(|m| m.server.is_some()) {
+                        "on this computer"
+                    } else if self.free_only {
                         "free text pricing"
                     } else {
                         "chat compatible"
@@ -2683,13 +2919,12 @@ impl App {
                     style,
                     w,
                 );
-                frame.text(
-                    x + 2,
-                    y + 3 + row * 2,
-                    &format!("{} · {} context", m.price(), m.context_length),
-                    style,
-                    w.saturating_sub(2),
-                );
+                let detail = if m.context_length > 0 {
+                    format!("{} · {} context", m.price(), m.context_length)
+                } else {
+                    m.price()
+                };
+                frame.text(x + 2, y + 3 + row * 2, &detail, style, w.saturating_sub(2));
             }
         } else {
             let items = self.copy_matches();
@@ -3321,8 +3556,8 @@ impl App {
             .map(|t| format!("Thinking · {} · Ctrl+C to stop.", elapsed(t.elapsed())));
         let status = if self.confirm_quit {
             "Close this session? [y/N]  Enter keeps it open."
-        } else if !self.approvals.is_empty() {
-            "Review action · Y run once · N / Enter decline · Ctrl+C stops"
+        } else if let Some(approval) = self.approvals.front() {
+            tools_view::review_status(approval)
         } else if self.pending_stopping {
             "Stopping local work… waiting for the process to exit."
         } else if self.selection_mode {
@@ -3390,7 +3625,11 @@ impl App {
                 "{} tok · web {} · tools {}",
                 self.args.max_tokens,
                 if self.args.web { "ON" } else { "off" },
-                self.args.tools.label()
+                if self.args.tools == crate::ToolsSetting::Auto {
+                    "AUTO"
+                } else {
+                    self.args.tools.label()
+                }
             );
             frame.text(margin, h - 1, &left, colors.muted, available);
             let hint = picker_hint.unwrap_or("/ commands · Enter send · Ctrl+C stop");
@@ -4230,9 +4469,88 @@ mod tests {
             a.args.chat_endpoint().unwrap(),
             "http://127.0.0.1:11434/v1/chat/completions"
         );
-        a.input.set("/web on");
+        // Web search works here too; Pitty searches through the chosen provider.
+        a.input.set("/web duckduckgo");
+        a.send();
+        assert!(a.args.web);
+        assert!(a.status.contains("DuckDuckGo"), "{}", a.status);
+        // OpenRouter's hosted search is refused, and the setting is kept.
+        a.input.set("/web openrouter");
+        a.send();
+        assert!(a.status.contains("OpenRouter interface"), "{}", a.status);
+        assert_eq!(a.args.search, Some(crate::SearchChoice::DuckDuckGo));
+        a.input.set("/web off");
         a.send();
         assert!(!a.args.web);
-        assert!(a.status.contains("OpenRouter"));
+    }
+
+    #[test]
+    fn turns_limit_one_request() {
+        let mut a = app();
+        a.input.set("/turns 250");
+        a.send();
+        assert_eq!(a.args.max_turns, 250);
+        assert!(a.status.contains("up to 250 model turns"), "{}", a.status);
+        a.input.set("/turns 0");
+        a.send();
+        assert_eq!(a.args.max_turns, 250);
+        assert!(a.status.contains("1 to 1000"), "{}", a.status);
+    }
+
+    #[test]
+    fn local_models_switch_chat_to_this_computer() {
+        let mut a = app();
+        a.input.set("draft stays");
+        a.show_local_models(vec![]);
+        assert!(a.picker.is_none());
+        assert!(
+            a.panel
+                .as_ref()
+                .is_some_and(|(_, lines)| lines[0].contains("No model server answered"))
+        );
+        a.show_local_models(vec![crate::local::Server {
+            name: "Ollama".into(),
+            base_url: "http://127.0.0.1:11434/v1".into(),
+            models: vec![],
+        }]);
+        assert!(
+            a.panel
+                .as_ref()
+                .is_some_and(|(_, lines)| lines[0].contains("serves no models yet"))
+        );
+        a.show_local_models(vec![
+            crate::local::Server {
+                name: "Ollama".into(),
+                base_url: "http://127.0.0.1:11434/v1".into(),
+                models: vec!["llama3.2:latest".into(), "qwen2.5-coder:7b".into()],
+            },
+            crate::local::Server {
+                name: "LM Studio".into(),
+                base_url: "http://127.0.0.1:1234/v1".into(),
+                models: vec!["phi-4".into()],
+            },
+        ]);
+        assert!(a.picker == Some(Picker::Models));
+        assert_eq!(a.model_matches().len(), 3);
+        assert!(
+            a.draw(100, 30)
+                .plain_text()
+                .contains("on this computer · Ollama")
+        );
+        a.handle(Key::Down);
+        a.handle(Key::Down);
+        a.handle(Key::Enter);
+        assert_eq!(
+            a.args.interface,
+            crate::interface::InterfaceKind::Compatible
+        );
+        assert_eq!(a.args.base_url.as_deref(), Some("http://127.0.0.1:1234/v1"));
+        assert_eq!(a.args.model, "phi-4");
+        assert_eq!(a.input.value(), "draft stays");
+        assert!(
+            a.status.contains("Chat stays on this computer"),
+            "{}",
+            a.status
+        );
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "pitty"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2024"
 rust-version = "1.98"
 description = "A local control layer for AI agents: approve the exact edit or command, then keep a record"
