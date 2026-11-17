@@ -24,7 +24,7 @@ pub const ORIGIN: &str = "https://pitty.tech";
 /// Public source repository: `Some("https://github.com/RuptionAI/pitty")` once
 /// that repository is public. While it is private, the site neither links to
 /// it nor calls Pitty open source.
-pub const SOURCE: Option<&str> = None;
+pub const SOURCE: Option<&str> = Some("https://github.com/RuptionAI/pitty");
 
 pub type Result<T> = std::result::Result<T, String>;
 

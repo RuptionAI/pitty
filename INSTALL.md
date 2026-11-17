@@ -14,7 +14,7 @@ macOS packages target macOS 11 or later and are tested on macOS 15. Linux packag
 
 ## Verify and install
 
-Download the archive and its matching `.sha256` file from the same release at https://pitty.tech/download/. In that download directory, verify the checksum before extracting:
+Download the archive and its matching `.sha256` file from the same release, either from https://pitty.tech/download/ or from https://github.com/RuptionAI/pitty/releases. In that download directory, verify the checksum before extracting:
 
 ```sh
 # macOS
@@ -38,7 +38,7 @@ pitty
 
 Add `export PATH="$HOME/.local/bin:$PATH"` to your shell configuration (`~/.zshrc` or `~/.bashrc`) to keep the command available in new terminals. Installation and updates use the same steps. The included `BUILD.txt` identifies the version and source revision; the checksum detects a damaged or changed download, but is not a publisher signature.
 
-These macOS binaries are not signed with an Apple Developer ID or notarized. macOS may block a binary downloaded in a browser; the one-paste installer at https://pitty.tech/download/ downloads with `curl`, which macOS does not quarantine. Pitty does not change Gatekeeper settings. A signed and notarized release is planned.
+These macOS binaries are not signed with an Apple Developer ID or notarized. macOS may block a binary downloaded in a browser; the one-paste installer at https://pitty.tech/download/ downloads with `curl`, which macOS does not quarantine. Pitty does not change Gatekeeper settings. You can also build from source with `cargo install --git https://github.com/RuptionAI/pitty --locked pitty`. A signed and notarized release is planned.
 
 ## Start a conversation
 
