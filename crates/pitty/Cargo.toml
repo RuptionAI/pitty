@@ -1,0 +1,6 @@
+[package]
+name = "pitty-ui"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "A small terminal interface written using only the Rust standard library"

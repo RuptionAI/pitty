@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Pitty: the model proposes, you press Y</title>
+<meta name="description" content="Pitty is an AI agent for your terminal. Every file change and command waits on screen, exactly as it will run, until you answer. Free, and written in Rust.">
+<link rel="canonical" href="https://pitty.tech/">
+<meta name="author" content="Ruption AI, Inc.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#eef1f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f141b" media="(prefers-color-scheme: dark)">
+<link rel="preload" href="/assets/atkinson-hyperlegible-next.18b2a1a39a2f.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/atkinson-hyperlegible-mono.2706b1ee4f45.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/styles.8fac4f6e012a.css">
+<link rel="icon" href="/assets/favicon.8fb3445604d3.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/touch-icon.b704b5e2c56c.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Pitty">
+<meta property="og:title" content="Pitty: the model proposes, you press Y">
+<meta property="og:description" content="Pitty is an AI agent for your terminal. Every file change and command waits on screen, exactly as it will run, until you answer. Free, and written in Rust.">
+<meta property="og:url" content="https://pitty.tech/">
+<meta property="og:image" content="https://pitty.tech/assets/social.01d4d632546f.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="Pitty: the model proposes, you press Y. An AI agent for your terminal that shows every edit and command before it runs.">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Pitty","applicationCategory":"DeveloperApplication","operatingSystem":"macOS, Linux","softwareVersion":"0.7.0","description":"An AI agent for your terminal that shows every file change and command exactly as it will run, and waits for your answer.","url":"https://pitty.tech/","downloadUrl":"https://pitty.tech/download/","license":"https://opensource.org/licenses/MIT","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"publisher":{"@type":"Organization","name":"Ruption AI, Inc.","url":"https://ruption.ai/"}}</script>
+<link rel="preload" href="/assets/browser.68ae2823aebf.wasm" as="fetch" type="application/wasm" crossorigin>
+<script type="module" src="/assets/browser.3e5d96aa3e42.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header wrap"><a class="home" href="/" aria-label="Pitty home" aria-current="page"><span class="wordmark" aria-hidden="true"><span>P</span><span>I</span><span>T</span><span>T</span><span>Y</span></span></a><nav aria-label="Main"><a href="/guide/">Guide</a><a href="/mcp/">MCP</a><a href="/download/" class="nav-download">Download</a></nav></header>
+<main id="main">
+<section class="hero" aria-labelledby="title">
+<div class="wrap hero-copy">
+<h1 id="title"><span>The model proposes.</span> <span>You press&nbsp;Y.</span></h1>
+<p class="lede">Pitty is an AI agent for your terminal. By default, every file change and command it wants to make appears exactly as it will run, and waits for your answer.</p>
+<p class="actions"><a class="button" href="/download/">Install in one paste</a><a class="text-link" href="/guide/">Read the guide</a></p>
+<p class="facts">Free under the MIT License. Version 0.7.0, for macOS and Linux.</p>
+</div>
+<div class="stage"><div class="wrap"><div class="demo" data-demo>
+<div class="requests" role="radiogroup" aria-labelledby="requests-label"><p id="requests-label">Ask Pitty</p><input class="visually-hidden" type="radio" name="request" id="request-edit" value="edit" checked><label for="request-edit"><span aria-hidden="true">› </span>Add a period to the greeting in src/main.rs.</label><input class="visually-hidden" type="radio" name="request" id="request-command" value="command"><label for="request-command"><span aria-hidden="true">› </span>Run the tests.</label><input class="visually-hidden" type="radio" name="request" id="request-env" value="env"><label for="request-env"><span aria-hidden="true">› </span>What&#x27;s in .env?</label></div>
+<figure class="terminal" aria-labelledby="terminal-caption">
+<div class="term-head"><span class="t"><span class="wordmark" aria-hidden="true"><span>P</span><span>I</span><span>T</span><span>T</span><span>Y</span></span><span class="model"> / nemotron-3-ultra-550b-a55b:free</span></span><span class="t muted">Folder  ~/hello · 0 connected (/pwd)</span></div>
+<div class="screens"><div class="screen state" data-request="edit" data-answer="wait"><span class="t accent">Review · Pitty · Edit /Users/you/hello/src/main.rs</span><span class="t"></span><span class="t">Edit /Users/you/hello/src/main.rs</span><span class="t"></span><span class="t">Exact old text:</span><span class="t">    println!(&quot;Hello&quot;);</span><span class="t"></span><span class="t">Replacement:</span><span class="t">    println!(&quot;Hello.&quot;);</span><span class="t"></span><span class="t">Y run once · N / Enter decline</span><span class="t muted">↑↓ / PgUp / PgDn scroll · Ctrl+C stops</span></div><div class="screen state" data-request="edit" data-answer="yes"><span class="t accent">› You  · /copy message 1</span><span class="t">  Add a period to the greeting in src/main.rs.</span><span class="t accent">● Assistant  · /copy message 2</span><span class="t">  Wrote 38 bytes to src/main.rs.</span></div><div class="screen state" data-request="edit" data-answer="no"><span class="t accent">› You  · /copy message 1</span><span class="t">  Add a period to the greeting in src/main.rs.</span></div><div class="screen state" data-request="command" data-answer="wait"><span class="t accent">Review · Pitty · Run command in /Users/you/hello</span><span class="t"></span><span class="t">Working directory: /Users/you/hello</span><span class="t">Timeout: 60s</span><span class="t"></span><span class="t">cargo test</span><span class="t"></span><span class="t">Runs with your OS permissions. File and network access are not restricted to connected folders. Only a small set of nonsecret environment variables is inherited.</span><span class="t"></span><span class="t">Y run once · N / Enter decline</span><span class="t muted">↑↓ / PgUp / PgDn scroll · Ctrl+C stops</span></div><div class="screen state" data-request="command" data-answer="yes"><span class="t accent">› You  · /copy message 1</span><span class="t">  Run the tests.</span><span class="t accent">● Assistant  · /copy message 2</span><span class="t">  cargo test passed: 3 passed, 0 failed.</span></div><div class="screen state" data-request="command" data-answer="no"><span class="t accent">› You  · /copy message 1</span><span class="t">  Run the tests.</span></div><div class="screen state" data-request="env" data-answer="wait"><span class="t accent">Review · Pitty · Read /Users/you/hello/.env</span><span class="t"></span><span class="t">Read lines 1–200 from /Users/you/hello/.env. This path may contain credentials; approved contents will be sent to the model.</span><span class="t"></span><span class="t">Y run once · N / Enter decline</span><span class="t muted">↑↓ / PgUp / PgDn scroll · Ctrl+C stops</span></div><div class="screen state" data-request="env" data-answer="yes"><span class="t accent">› You  · /copy message 1</span><span class="t">  What&#x27;s in .env?</span><span class="t accent">● Assistant  · /copy message 2</span><span class="t">  .env sets PORT=8080 and DATABASE_URL.</span></div><div class="screen state" data-request="env" data-answer="no"><span class="t accent">› You  · /copy message 1</span><span class="t">  What&#x27;s in .env?</span></div></div>
+<div class="term-foot"><span class="t composer">› Message, or / for commands…</span><span class="t status" data-answer="wait">Review action · Y run once · N / Enter decline · Ctrl+C stops</span><span class="t status" data-answer="yes">Ready in 2s · Ctrl+Y copies the last reply · F2 selects text.</span><span class="t status" data-answer="no">Action declined.</span><span class="t footline"><span class="muted">4096 tok · web off · tools ask</span><span class="accent">/ commands · Enter send · Ctrl+C stop</span></span></div>
+<figcaption id="terminal-caption" class="visually-hidden">Pitty in a terminal, reviewing the request you chose.</figcaption>
+</figure>
+<div class="answer" role="radiogroup" aria-label="Answer the review">
+<input class="visually-hidden" type="radio" name="answer" id="answer-wait" value="wait" checked>
+<input class="visually-hidden" type="radio" name="answer" id="answer-yes" value="yes"><label class="cap cap-yes" for="answer-yes"><kbd>Y</kbd><span>run it once</span></label>
+<input class="visually-hidden" type="radio" name="answer" id="answer-no" value="no"><label class="cap cap-no" for="answer-no"><kbd>N</kbd><span>decline</span></label>
+<label class="again" for="answer-wait">Show the review again</label>
+</div>
+<div class="captions"><p class="caption state" data-request="edit" data-answer="wait">Pitty shows the exact edit and waits. Y runs it once; N declines.</p><p class="caption state" data-request="edit" data-answer="yes">Y ran the edit once. Pitty wrote 38 bytes to src/main.rs.</p><p class="caption state" data-request="edit" data-answer="no">N declined the edit. Nothing was written.</p><p class="caption state" data-request="command" data-answer="wait">Pitty shows the exact command, where it runs, and its timeout, then waits.</p><p class="caption state" data-request="command" data-answer="yes">Y ran cargo test once, without your API keys in its environment.</p><p class="caption state" data-request="command" data-answer="no">N declined the command. Nothing ran.</p><p class="caption state" data-request="env" data-answer="wait">A credential-like file needs its own approval, and the review says where its contents would go.</p><p class="caption state" data-request="env" data-answer="yes">Y approved one read. The contents of .env went to the model.</p><p class="caption state" data-request="env" data-answer="no">N declined the read. The model never saw .env.</p></div>
+<p class="demo-keys">Your keyboard works too: press <kbd>Y</kbd> or <kbd>N</kbd>. In Pitty, Enter and Esc also decline.</p>
+<p class="visually-hidden" data-demo-status role="status" aria-live="polite"></p>
+</div></div></div>
+</section>
+<section class="section wrap" aria-labelledby="checks-title">
+<div class="section-head"><h2 id="checks-title">It asks before anything lands.</h2><p>What this build already checks, quoted as Pitty prints it.</p></div>
+<dl class="said"><div><dt><samp>Y run once · N / Enter decline</samp></dt><dd>Ask is the mode Pitty starts in. File changes, commands, and reads of credential-like files wait on screen until you answer. Y runs that one action once; the next one asks again.</dd></div><div><dt><samp>File changed after approval; prepare the edit again.</samp></dt><dd>Pitty compares the file with the version you reviewed. If anything changed after you said yes, the write does not land.</dd></div><div><dt><samp>This path may contain credentials; approved contents will be sent to the model.</samp></dt><dd>Files such as <code>.env</code> and SSH keys need their own approval, and search skips them. Over MCP, they are never read.</dd></div><div><dt><samp>Only a small set of nonsecret environment variables is inherited.</samp></dt><dd>Commands the model asks for start from a cleared environment, so <code>OPENROUTER_API_KEY</code>, <code>OPENAI_API_KEY</code>, and <code>PITTY_API_KEY</code> stay out. They still run with your account’s permissions, and Ctrl+C stops the whole process group.</dd></div></dl>
+</section>
+<section class="section wrap" aria-labelledby="models-title">
+<div class="section-head"><h2 id="models-title">Any model. The same review.</h2><p>Chat goes wherever you point it. The review in front of each action stays.</p></div>
+<dl class="said"><div><dt><code>pitty</code></dt><dd>OpenRouter, the default: free models, the live catalog, web search, and PDFs. Paste a key with <code>/key</code>, or set <code>OPENROUTER_API_KEY</code>.</dd></div><div><dt><code>pitty --interface openai --model gpt-4.1-mini</code></dt><dd>OpenAI. You name the model, and the key is <code>OPENAI_API_KEY</code>.</dd></div><div><dt><code>pitty --interface compatible --base-url http://127.0.0.1:11434/v1 --model llama3.2</code></dt><dd>Any endpoint that speaks the same chat protocol, including one on your own machine. A key is optional.</dd></div><div><dt><code>pitty --mcp --directory /path/to/project --tools ask</code></dt><dd>Or lend the same file and command tools to an MCP client, such as Claude Code or Codex, which brings its own model.</dd></div></dl>
+<p class="section-link"><a class="text-link" href="/mcp/">Connect an MCP client</a></p>
+</section>
+<section class="section wrap" aria-labelledby="record-title">
+<div class="section-head"><h2 id="record-title">Every answer is on the record.</h2><p>What ran stays with the conversation, and every decision goes into a log you can check.</p></div>
+<dl class="said"><div><dt><samp>/actions</samp></dt><dd>Lists every action that ran in the conversation, with its output. Stopping a request keeps the work already finished, and <code>/retry</code> never repeats a turn that already changed something.</dd></div><div><dt><samp>Chain intact · 12 records · /Users/you/.local/share/pitty/audit.log</samp></dt><dd>What <code>/audit</code> reports. Each approval, decline, and run adds one line to a log on your computer, and each line stores the SHA-256 of the line before it, so an edited or deleted line breaks the chain. It records decisions, never file contents or output. Someone able to rewrite the whole file could build a new chain; the check cannot see that.</dd></div></dl>
+</section>
+<section class="section wrap open" aria-labelledby="open-title">
+<div class="section-head"><h2 id="open-title">Rust all the way down.</h2><p>How Pitty is built, and what it never does.</p></div>
+<ul class="open-list">
+<li>The terminal interface is Pitty’s own Rust library with no dependencies: its renderer, editor, Unicode layout, and input decoding.</li>
+<li>Command parsing and conversation checks run in a WebAssembly engine inside the program, with no access to files or the network.</li>
+<li>No account and no telemetry. Pitty talks to the chat endpoint you choose, and to other Pitty terminals only when you open a <code>/peer</code> room.</li>
+<li>Downloads come with SHA-256 checksums, and the installer checks them before anything is unpacked.</li>
+<li>This site is built the same way: a Rust program renders every page, and the demo above runs on Rust compiled to WebAssembly.</li>
+</ul>
+</section>
+<section class="section wrap ahead" aria-labelledby="ahead-title">
+<div class="section-head"><h2 id="ahead-title">Still ahead.</h2><p>What this build does not do yet, in the order we plan to close it.</p></div>
+<ol>
+<li><span><strong>A notarized Mac build.</strong> Today’s macOS downloads are not signed with an Apple Developer ID.</span></li>
+<li><span><strong>Windows.</strong> Pitty runs on macOS and 64-bit Linux. Windows users can try the Linux build in WSL2; that path is untested.</span></li>
+<li><span><strong>Streaming replies.</strong> A reply appears when the model finishes it.</span></li>
+<li><span><strong>Rules a team can share.</strong> Ask or auto set once for a whole team, with a record everyone can read.</span></li>
+</ol>
+</section>
+<section class="next wrap" aria-labelledby="next-title"><h2 id="next-title">Start here</h2><div class="next-links"><a href="/download/"><strong>Install Pitty</strong><span>One paste on macOS or Linux. The checksum is verified first.</span></a><a href="/guide/"><strong>Read the guide</strong><span>Keys, models, the review, files, and the record.</span></a><a href="/mcp/"><strong>Connect an MCP client</strong><span>The same tools for Claude Code, Codex, or Cursor.</span></a></div></section>
+</main>
+<footer class="site-footer"><div class="wrap footer-grid"><div class="footer-about"><a class="home" href="/" aria-label="Pitty home"><span class="wordmark" aria-hidden="true"><span>P</span><span>I</span><span>T</span><span>T</span><span>Y</span></span></a><p>An AI agent for your terminal that asks before it changes anything.</p></div><nav aria-label="Footer"><a href="/download/">Download</a><a href="/guide/">Guide</a><a href="/mcp/">MCP setup</a></nav><a class="company" href="https://ruption.ai/"><img src="/assets/ruption-mark.154ad33960a5.svg" alt="" width="32" height="32"><span>Made by Ruption AI, Inc.</span></a><p class="fineprint">Pitty 0.7.0 for macOS and Linux, under the MIT License. Pitty is independent of OpenRouter, OpenAI, and model providers. <a href="/assets/notices.5200f212b95a.txt">Open-source notices</a></p></div></footer>
+</body>
+</html>

@@ -1,0 +1,20 @@
+# The website's Rust source: a native builder that renders every page and a
+# browser crate compiled to WebAssembly. Kept apart from the CLI workspace so
+# website-only dependencies never enter the downloadable CLI's lockfile.
+[workspace]
+members = ["builder", "browser"]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.98"
+license = "MIT"
+publish = false
+
+# Applies to the browser crate's WebAssembly build.
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

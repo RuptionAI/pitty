@@ -1,0 +1,18 @@
+.env
+.env.*
+!.env.example
+/target/
+/.cargo/config.toml
+.DS_Store
+
+# Private notes with local paths
+/API_USAGE.md
+
+# Release archives are staged separately for website uploads
+/website/downloads/
+
+# Website workspace build output (when built without the local target-dir config)
+/site/target/
+
+# Isolated agent worktrees
+/.claude/worktrees/

@@ -1,0 +1,9 @@
+[package]
+name = "leanrust"
+version = "0.1.0"
+edition = "2021"
+description = "Markers for programs certified by the LeanRust prover"
+publish = false
+
+[dependencies]
+leanrust-macros = { path = "../leanrust-macros" }

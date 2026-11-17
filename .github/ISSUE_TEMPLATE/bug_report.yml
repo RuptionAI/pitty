@@ -1,0 +1,52 @@
+name: Bug report
+description: Pitty does something it should not, or does not do what it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not report security problems here. Follow the [security policy](https://github.com/RuptionAI/pitty/security/policy) instead.
+        Never paste an API key, a key file, or a conversation you have not reviewed.
+  - type: input
+    id: version
+    attributes:
+      label: Pitty version
+      description: The output of `pitty --version`.
+      placeholder: pitty 0.7.0
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: Operating system and terminal app
+      placeholder: macOS 15.5, Terminal.app
+    validations:
+      required: true
+  - type: input
+    id: interface
+    attributes:
+      label: Interface and model
+      description: openrouter, openai, or compatible, and the model id. Write "MCP" if the problem is in `pitty --mcp`.
+      placeholder: openrouter, nvidia/nemotron-3-ultra-550b-a55b:free
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `pitty --directory ~/project`
+        2. Type ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the exact error text, with keys and private paths removed.
+    validations:
+      required: true

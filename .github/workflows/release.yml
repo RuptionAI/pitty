@@ -1,0 +1,59 @@
+name: Release packages
+on:
+  workflow_dispatch:
+
+# Produces reviewable artifacts only. Publishing and repository visibility are separate.
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: aarch64-apple-darwin
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+    env:
+      CARGO_TERM_COLOR: always
+      MACOSX_DEPLOYMENT_TARGET: '11.0'
+    steps:
+      - name: Check out selected revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8
+        with:
+          toolchain: '1.98.0'
+          components: rustfmt, clippy, rust-docs
+          targets: wasm32-unknown-unknown
+      - name: Fetch locked dependency sources and notices
+        run: cargo fetch --locked --target '${{ matrix.target }}' --target wasm32-unknown-unknown
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Build WebAssembly and native binary
+        run: cargo run --locked -p pitty-build -- release
+      - name: Check lints
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - name: Run offline unit tests
+        run: cargo test --locked --workspace
+      - name: Create archive and checksums
+        run: cargo run --locked -p pitty-release -- --target '${{ matrix.target }}' --output dist
+      - name: Upload reviewed package candidates
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pitty-${{ matrix.target }}
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

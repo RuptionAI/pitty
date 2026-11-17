@@ -1,0 +1,34 @@
+name: CI
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  check:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+      - run: cargo fmt --all --check
+      - run: cargo run --locked -p pitty-build -- release
+      - run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - run: cargo test --locked --workspace
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+      - run: cargo fmt --manifest-path site/Cargo.toml --all --check
+      - run: cargo clippy --manifest-path site/Cargo.toml --locked -p pitty-site --all-targets -- -D warnings
+      - run: cargo clippy --manifest-path site/Cargo.toml --locked -p pitty-site-browser --target wasm32-unknown-unknown -- -D warnings
+      - run: cargo test --manifest-path site/Cargo.toml --locked -p pitty-site
+      # Fails if website/ differs from what the Rust site builder renders.
+      - run: cargo run --manifest-path site/Cargo.toml --locked -p pitty-site -- check

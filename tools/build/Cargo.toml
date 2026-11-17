@@ -1,0 +1,7 @@
+[package]
+name = "pitty-build"
+version = "0.1.0"
+description = "Builds, packages, and installs the Pitty release for this host"
+edition = "2024"
+license = "MIT"
+publish = false

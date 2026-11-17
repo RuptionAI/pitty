@@ -1,0 +1,13 @@
+[package]
+name = "pitty-site"
+version = "0.2.0"
+description = "Builds pitty.tech: renders pages, compiles the browser WebAssembly, and fingerprints assets"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+sha2 = "0.10"
+# Must match the browser crate's wasm-bindgen version exactly.
+wasm-bindgen-cli-support = "=0.2.128"

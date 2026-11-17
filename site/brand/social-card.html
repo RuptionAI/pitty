@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pitty social card</title>
+<!-- Source for site/static/social.png. Render at exactly 1280x640, for example:
+     chrome --headless=new --window-size=1280,640 --allow-file-access-from-files --screenshot=social.png site/brand/social-card.html
+     then compress it (pngquant) and replace site/static/social.png. -->
+<style>
+@font-face { font-family: "AHN"; src: url("../static/fonts/atkinson-hyperlegible-next.woff2") format("woff2"); font-weight: 200 800; }
+@font-face { font-family: "AHM"; src: url("../static/fonts/atkinson-hyperlegible-mono.woff2") format("woff2"); font-weight: 200 800; }
+html, body { margin: 0; }
+body { width: 1280px; height: 640px; overflow: hidden; background: #eef1f5; color: #1d2530; font-family: "AHN", sans-serif; position: relative; }
+.mark { position: absolute; left: 72px; top: 64px; display: inline-flex; font: 800 40px/1 "AHM", monospace; }
+.mark span { padding: 7px 5px 6px; }
+.mark span:nth-child(1) { color: #ba242a; background: #ffd6d2; border-radius: 7px 0 0 7px; }
+.mark span:nth-child(2) { color: #b05c08; background: #ffe8c4; }
+.mark span:nth-child(3) { color: #12803a; background: #d6f2dc; }
+.mark span:nth-child(4) { color: #184eba; background: #d2e6ff; }
+.mark span:nth-child(5) { color: #7a2ab0; background: #ecd6ff; border-radius: 0 7px 7px 0; }
+h1 { position: absolute; left: 72px; top: 158px; margin: 0; font-size: 92px; font-weight: 780; line-height: 0.98; letter-spacing: -0.032em; }
+p { position: absolute; left: 74px; top: 372px; margin: 0; width: 640px; font-size: 29px; line-height: 1.4; color: #4b5666; }
+.bands { position: absolute; left: 0; right: 0; bottom: 0; height: 120px; background: linear-gradient(90deg, #ffd6d2 0 20%, #ffe8c4 20% 40%, #d6f2dc 40% 60%, #d2e6ff 60% 80%, #ecd6ff 80% 100%); }
+.url { position: absolute; left: 74px; bottom: 44px; font: 600 30px/1 "AHM", monospace; color: #1d2530; }
+.keys { position: absolute; right: 84px; top: 290px; display: flex; gap: 34px; }
+.key { display: grid; place-items: center; width: 140px; height: 130px; border-radius: 26px; font: 700 70px/1 "AHM", monospace; }
+.y { background: #ecd6ff; color: #7a2ab0; box-shadow: 0 12px 0 #c7a3ea, 0 12px 0 2px #c3cdd8, 0 34px 40px -20px rgba(29,37,48,.35); }
+.n { background: #f8f9fb; color: #1d2530; box-shadow: 0 0 0 2px #c3cdd8, 0 12px 0 #c0c9d4, 0 12px 0 2px #c3cdd8, 0 34px 40px -20px rgba(29,37,48,.35); }
+</style>
+</head>
+<body>
+<div class="mark"><span>P</span><span>I</span><span>T</span><span>T</span><span>Y</span></div>
+<h1>The model proposes.<br>You press Y.</h1>
+<p>An AI agent for your terminal that shows every edit and command before it runs.</p>
+<div class="keys"><div class="key y">Y</div><div class="key n">N</div></div>
+<div class="bands"></div>
+<div class="url">pitty.tech</div>
+</body>
+</html>

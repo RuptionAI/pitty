@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/RuptionAI/pitty/security/policy
+    about: Report it privately through GitHub, as the security policy describes. Do not open a public issue.
+  - name: Usage guide
+    url: https://pitty.tech/guide/
+    about: Setup, keys, local tools, files, and installation help.
