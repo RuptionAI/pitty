@@ -158,7 +158,10 @@ pub fn document(site: &Site, page: &Page) -> String {
         social = site.social_image,
         head = page.head,
         header = header(page),
-        main = page.main,
+        main = page
+            .main
+            .replace("%DEMO_VIDEO%", &site.demo_video)
+            .replace("%DEMO_POSTER%", &site.demo_poster),
         footer = footer(site),
     )
 }
@@ -179,6 +182,8 @@ pub mod tests {
             browser_wasm: show("browser.wasm"),
             notices: show("notices.txt"),
             ruption_mark: show("ruption-mark.svg"),
+            demo_video: show("pitty-demo.mp4"),
+            demo_poster: show("pitty-demo-poster.png"),
             fonts: vec![show("sans.woff2"), show("mono.woff2")],
         }
     }

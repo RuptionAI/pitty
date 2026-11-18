@@ -499,6 +499,14 @@ img { max-width: 100%; height: auto; }
 .page-head h1 { font-size: clamp(48px, 7.4vw, 96px); }
 .page-head .lede { margin-top: 20px; }
 .not-found .page-head { padding-block: 64px 0; }
+
+/* The demo video page */
+.watch-video { margin-bottom: 56px; }
+.watch-video video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; border: 1px solid var(--line); border-radius: 12px; background: var(--term); }
+.watch-video figcaption { margin-top: 12px; color: var(--muted); font-size: 16px; }
+.watch-steps { max-width: 46em; margin-bottom: 72px; }
+.watch-steps h2 { font-size: clamp(30px, 3.6vw, 42px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; margin-bottom: 18px; }
+.watch-steps ol { padding-left: 1.3em; display: grid; gap: 12px; }
 .note { color: var(--muted); font-size: 16px; line-height: 1.55; }
 
 .steps { list-style: none; padding: 0; counter-reset: step; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; margin-bottom: 40px; }

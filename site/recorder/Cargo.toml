@@ -1,0 +1,18 @@
+[package]
+name = "pitty-demo-recorder"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+license = "MIT"
+publish = false
+description = "Records real Pitty sessions and renders the captioned demo video on pitty.tech/demo/."
+
+# Its own workspace, so its pseudo-terminal dependencies stay out of the
+# site's and the CLI's lockfiles.
+[workspace]
+
+[dependencies]
+portable-pty = "0.9"
+vt100 = "0.15"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

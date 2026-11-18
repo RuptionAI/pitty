@@ -4,11 +4,12 @@ mod guide;
 mod index;
 mod mcp;
 mod not_found;
+mod video;
 
 use crate::layout::Page;
 
 /// Public pages, in sitemap order.
-pub const INDEXED: &[&str] = &["/", "/download/", "/guide/", "/mcp/"];
+pub const INDEXED: &[&str] = &["/", "/download/", "/guide/", "/mcp/", "/demo/"];
 
 pub fn all() -> Vec<Page> {
     vec![
@@ -16,6 +17,7 @@ pub fn all() -> Vec<Page> {
         download::page(),
         guide::page(),
         mcp::page(),
+        video::page(),
         not_found::page(),
     ]
 }

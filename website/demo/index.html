@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'none'; style-src 'self'; img-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Watch Pitty work: a real session</title>
+<meta name="description" content="A real Pitty 0.8.0 session with a free cloud model: an edit and a command that wait for Y, web search with sources, Auto mode, and the decision log. Waits for the model are sped up and marked.">
+<link rel="canonical" href="https://pitty.tech/demo/">
+<meta name="author" content="Ruption AI, Inc.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#eef1f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f141b" media="(prefers-color-scheme: dark)">
+<link rel="preload" href="/assets/atkinson-hyperlegible-next.18b2a1a39a2f.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/atkinson-hyperlegible-mono.2706b1ee4f45.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/styles.ed591ce938fa.css">
+<link rel="icon" href="/assets/favicon.8fb3445604d3.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/touch-icon.b704b5e2c56c.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Pitty">
+<meta property="og:title" content="Watch Pitty work: a real session">
+<meta property="og:description" content="A real Pitty 0.8.0 session with a free cloud model: an edit and a command that wait for Y, web search with sources, Auto mode, and the decision log. Waits for the model are sped up and marked.">
+<meta property="og:url" content="https://pitty.tech/demo/">
+<meta property="og:image" content="https://pitty.tech/assets/social.01d4d632546f.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="Pitty: the model proposes, you press Y. An AI agent for your terminal that shows every edit and command before it runs.">
+<meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header wrap"><a class="home" href="/" aria-label="Pitty home"><span class="wordmark" aria-hidden="true"><span>P</span><span>I</span><span>T</span><span>T</span><span>Y</span></span></a><nav aria-label="Main"><a href="/guide/">Guide</a><a href="/mcp/">MCP</a><a href="https://github.com/RuptionAI/pitty">GitHub</a><a href="/download/" class="nav-download">Download</a></nav></header>
+<main id="main" class="wrap page watch">
+<header class="page-head"><h1>Watch Pitty work.</h1><p class="lede">A real session with Pitty 0.8.0 and a free cloud model, recorded in a terminal. Nothing is staged: the model chose every action you see. Waits for the model are sped up, and the video marks each one.</p></header>
+<figure class="watch-video"><video controls playsinline preload="metadata" width="1920" height="1080" poster="/assets/pitty-demo-poster.b9d1c14fac8d.png" aria-describedby="watch-steps"><source src="/assets/pitty-demo.18c6aa4cb435.mp4" type="video/mp4"></video><figcaption><a href="/assets/pitty-demo.18c6aa4cb435.mp4">Download the video (MP4)</a></figcaption></figure>
+<section class="watch-steps" aria-labelledby="watch-steps-title"><h2 id="watch-steps-title">What happens in the video</h2><ol id="watch-steps">
+<li>Asked to add a <code>--name</code> option and run the program, the model proposes an edit. Pitty shows the exact old text and its replacement, and nothing is written until <kbd>Y</kbd>. The command waits the same way.</li>
+<li>With <code>/web duckduckgo</code>, Pitty searches DuckDuckGo itself, with no key. Every search and page fetch waits for a yes, and the answer lists the sources it used.</li>
+<li><kbd>Shift</kbd>+<kbd>Tab</kbd> switches to Auto. The model adds a test and runs it without stopping, and every action is still recorded.</li>
+<li><code>/audit</code> checks the decision log: each line holds the SHA-256 of the line before it, so an edited or deleted line breaks the chain.</li>
+</ol></section>
+<section class="next wrap" aria-labelledby="next-title"><h2 id="next-title">Try it yourself.</h2><div class="next-links"><a href="/download/"><strong>Install Pitty</strong><span>One paste on macOS or Linux. The checksum is verified first.</span></a><a href="/guide/"><strong>Read the guide</strong><span>Keys, models, the review, files, and the record.</span></a><a href="/mcp/"><strong>Connect an MCP client</strong><span>The same tools for Claude Code, Codex, or Cursor.</span></a></div></section>
+</main>
+<footer class="site-footer"><div class="wrap footer-grid"><div class="footer-about"><a class="home" href="/" aria-label="Pitty home"><span class="wordmark" aria-hidden="true"><span>P</span><span>I</span><span>T</span><span>T</span><span>Y</span></span></a><p>An AI agent for your terminal that asks before it changes anything.</p></div><nav aria-label="Footer"><a href="/download/">Download</a><a href="/guide/">Guide</a><a href="/mcp/">MCP setup</a><a href="https://github.com/RuptionAI/pitty">Source code</a><a href="https://github.com/RuptionAI/pitty/releases">Releases</a><a href="https://github.com/RuptionAI/pitty/blob/main/SECURITY.md">Security</a></nav><a class="company" href="https://ruption.ai/"><img src="/assets/ruption-mark.154ad33960a5.svg" alt="" width="32" height="32"><span>Made by Ruption AI, Inc.</span></a><p class="fineprint">Pitty 0.8.0 for macOS and Linux, under the MIT License. Pitty is independent of OpenRouter, OpenAI, and model providers. <a href="/assets/notices.5200f212b95a.txt">Open-source notices</a></p></div></footer>
+</body>
+</html>

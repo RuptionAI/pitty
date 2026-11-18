@@ -17,6 +17,9 @@ pub struct Site {
     pub browser_wasm: String,
     pub notices: String,
     pub ruption_mark: String,
+    /// The demo video on /demo/ and the still shown before it plays.
+    pub demo_video: String,
+    pub demo_poster: String,
     /// Font files the stylesheet uses, preloaded on every page.
     pub fonts: Vec<String>,
 }
@@ -298,6 +301,18 @@ pub fn collect(root: &Path, browser: BrowserBundle, tree: &mut Tree) -> Result<S
         )?,
         browser_js: add(tree, BUNDLE, "js", browser.js.into_bytes())?,
         browser_wasm: format!("/{wasm_path}"),
+        demo_video: add(
+            tree,
+            "pitty-demo",
+            "mp4",
+            read(&statics.join("media/pitty-demo.mp4"))?,
+        )?,
+        demo_poster: add(
+            tree,
+            "pitty-demo-poster",
+            "png",
+            read(&statics.join("media/pitty-demo-poster.png"))?,
+        )?,
         fonts: fonts.into_iter().map(|(_, url)| url).collect(),
     })
 }
